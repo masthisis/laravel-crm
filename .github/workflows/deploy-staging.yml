@@ -1,0 +1,36 @@
+name: Deploy (staging)
+
+on:
+  workflow_run:
+    workflows: ['Build & Push Image']
+    types: [completed]
+    branches: [develop]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to staging server
+    runs-on: ubuntu-latest
+    if: >-
+      ${{ vars.STAGING_DEPLOY_ENABLED == 'true'
+          && github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Deploy over SSH
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ vars.STAGING_PATH }}
+            git fetch --all --tags
+            git checkout origin/develop
+            docker compose -f docker-compose.staging.yml pull app worker scheduler
+            docker compose -f docker-compose.staging.yml build nginx
+            docker compose -f docker-compose.staging.yml up -d
+            docker compose -f docker-compose.staging.yml exec -T app php artisan migrate --force
