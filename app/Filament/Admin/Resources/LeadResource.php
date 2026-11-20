@@ -35,6 +35,18 @@ class LeadResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
+    public static function getNavigationBadge(): ?string
+    {
+        $unassigned = Lead::query()->open()->whereNull('assigned_agent_id')->count();
+
+        return $unassigned > 0 ? (string) $unassigned : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -112,6 +124,17 @@ class LeadResource extends Resource
                 Tables\Filters\SelectFilter::make('status')->options(LeadStatus::class)->multiple(),
                 Tables\Filters\SelectFilter::make('source')->relationship('source', 'name')->searchable(),
                 Tables\Filters\SelectFilter::make('agent')->relationship('agent', 'name')->searchable(),
+                Tables\Filters\TernaryFilter::make('assigned')
+                    ->label('Assigned to an agent')
+                    ->nullable()
+                    ->falseLabel('Lead pool (unassigned)')
+                    ->trueLabel('Assigned'),
+                Tables\Filters\Filter::make('stale')
+                    ->label('Stale (open, no activity)')
+                    ->query(fn ($query) => $query->stale()),
+                Tables\Filters\Filter::make('today')
+                    ->label('Arrived today')
+                    ->query(fn ($query) => $query->whereDate('created_at', today())),
             ])
             ->actions([
                 Tables\Actions\Action::make('markWon')
