@@ -56,10 +56,22 @@ class LeadCaptureController extends Controller
             ?? $this->bearerToken($request);
 
         if (blank($token)) {
+            // Embedded forms identify by id: the form URL is public, so
+            // the id carries no additional secret (tokens are hashed at
+            // rest and only form_embed integrations resolve this way).
+            $integrationId = $request->input('integration_id');
+
+            if ($integrationId !== null) {
+                return LeadIntegration::query()
+                    ->whereKey($integrationId)
+                    ->where('driver', IntegrationDriver::FormEmbed->value)
+                    ->first();
+            }
+
             return null;
         }
 
-        return LeadIntegration::query()->where('token', $token)->first();
+        return LeadIntegration::query()->where('token', hash('sha256', (string) $token))->first();
     }
 
     protected function bearerToken(Request $request): ?string

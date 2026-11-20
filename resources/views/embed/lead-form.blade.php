@@ -29,7 +29,7 @@
         @else
             <form method="POST" action="{{ url('/api/leads') }}">
                 @csrf
-                <input type="hidden" name="token" value="{{ $integration->token }}">
+                <input type="hidden" name="integration_id" value="{{ $integration->id }}">
                 <label for="name">Full name *</label>
                 <input id="name" name="name" type="text" required maxlength="255">
                 <label for="phone">Phone *</label>
