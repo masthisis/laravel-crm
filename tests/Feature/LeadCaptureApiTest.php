@@ -1,10 +1,14 @@
 <?php
 
 use App\Enums\LeadStatus;
+use App\Events\DuplicateCaptureIgnored;
+use App\Events\LeadCaptured;
+use App\Events\LeadReengaged;
 use App\Models\Lead;
 use App\Models\LeadIntegration;
 use App\Models\LeadSource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 
 uses(RefreshDatabase::class);
 
@@ -93,4 +97,33 @@ it('serves the embeddable form page', function () {
         ->assertOk()
         ->assertSee('Request a call')
         ->assertSee('embed-token', false);
+});
+
+it('dispatches capture, re-engagement and duplicate events', function () {
+    Event::fake([
+        LeadCaptured::class,
+        LeadReengaged::class,
+        DuplicateCaptureIgnored::class,
+    ]);
+
+    $source = LeadSource::create(['name' => 'Facebook Ads', 'slug' => 'facebook-ads']);
+    $otherSource = LeadSource::create(['name' => 'Blog form', 'slug' => 'blog-form']);
+    $integration = LeadIntegration::create(['lead_source_id' => $source->id, 'driver' => 'webhook', 'token' => 'tok-evt-1', 'is_active' => true]);
+    $otherIntegration = LeadIntegration::create(['lead_source_id' => $otherSource->id, 'driver' => 'webhook', 'token' => 'tok-evt-2', 'is_active' => true]);
+
+    // First submission -> captured.
+    $this->postJson('/api/leads', ['name' => 'Event Person', 'phone' => '+15559991'], ['X-Integration-Token' => 'tok-evt-1'])
+        ->assertStatus(201);
+
+    // Same source again -> duplicate ignored.
+    $this->postJson('/api/leads', ['name' => 'Event Person', 'phone' => '+15559991'], ['X-Integration-Token' => 'tok-evt-1'])
+        ->assertStatus(200);
+
+    // Different source -> re-engaged.
+    $this->postJson('/api/leads', ['name' => 'Event Person', 'phone' => '+15559991'], ['X-Integration-Token' => 'tok-evt-2'])
+        ->assertStatus(200);
+
+    Event::assertDispatchedTimes(LeadCaptured::class, 1);
+    Event::assertDispatchedTimes(DuplicateCaptureIgnored::class, 1);
+    Event::assertDispatchedTimes(LeadReengaged::class, 1);
 });
