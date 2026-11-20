@@ -24,6 +24,12 @@ return [
         'stale_days' => (int) env('CRM_LEADS_STALE_DAYS', 7),
     ],
 
+    'subscriptions' => [
+        // Renewal alerts in the customer 360 view highlight subscriptions
+        // ending within this window.
+        'renewal_window' => (int) env('CRM_SUBSCRIPTION_RENEWAL_WINDOW', 30),
+    ],
+
     'import' => [
         // skip: rows whose phone matches an existing open lead are counted
         // as duplicates and not imported (safe default — re-importing the

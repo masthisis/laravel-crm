@@ -10,6 +10,7 @@ class LeadActivity extends Model
 {
     protected $fillable = [
         'lead_id',
+        'customer_id',
         'agent_id',
         'type',
         'notes',
@@ -22,6 +23,12 @@ class LeadActivity extends Model
             'type' => ActivityType::class,
             'occurred_at' => 'datetime',
         ];
+    }
+
+    /** @return BelongsTo<Customer, $this> */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
     }
 
     /** @return BelongsTo<Lead, $this> */
