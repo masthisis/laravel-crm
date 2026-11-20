@@ -11,6 +11,7 @@ enum ActivityType: string implements HasLabel
     case Sms = 'sms';
     case Meeting = 'meeting';
     case Note = 'note';
+    case Sale = 'sale';
 
     public function getLabel(): string
     {
@@ -20,6 +21,7 @@ enum ActivityType: string implements HasLabel
             self::Sms => 'SMS',
             self::Meeting => 'Meeting',
             self::Note => 'Note',
+            self::Sale => 'Sale',
         };
     }
 }

@@ -7,7 +7,6 @@ use App\Models\AssignmentBatch;
 use App\Models\LeadSource;
 use App\Models\User;
 use App\Services\LeadImportService;
-use App\Support\Roles;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Radio;
@@ -67,13 +66,13 @@ class ImportLeads extends Page
                         ->live(),
                     Select::make('single_agent_id')
                         ->label('Assign all to')
-                        ->options(fn () => User::role(Roles::SALES_STAFF)->orderBy('name')->pluck('name', 'id'))
+                        ->options(fn () => User::activeAgents()->pluck('name', 'id'))
                         ->searchable()
                         ->visible(fn (Get $get) => $get('strategy') === AssignmentStrategy::Single->value)
                         ->required(fn (Get $get) => $get('strategy') === AssignmentStrategy::Single->value),
                     Select::make('distribute_agents')
                         ->label('Distribute across')
-                        ->options(fn () => User::role(Roles::SALES_STAFF)->orderBy('name')->pluck('name', 'id'))
+                        ->options(fn () => User::activeAgents()->pluck('name', 'id'))
                         ->multiple()->searchable()
                         ->visible(fn (Get $get) => $get('strategy') === AssignmentStrategy::Distribute->value)
                         ->required(fn (Get $get) => $get('strategy') === AssignmentStrategy::Distribute->value)
@@ -93,9 +92,48 @@ class ImportLeads extends Page
                     $this->recentBatches = AssignmentBatch::latest()->limit(10)->get()->all();
 
                     Notification::make()
-                        ->title("Imported {$result['imported']} lead(s), skipped {$result['skipped']}.")
-                        ->body(implode("\n", array_slice($result['errors'], 0, 5)))
+                        ->title("Imported {$result['imported']} lead(s) — {$result['duplicates']} duplicate(s), {$result['skipped']} failed.")
+                        ->body(implode("\n", array_slice($result['errors'], 0, 5))
+                            .(count($result['errors']) > 5 ? "\n… and ".(count($result['errors']) - 5).' more — open the batch to review.' : ''))
                         ->success()->send();
+                }),
+            Action::make('downloadTemplate')
+                ->label('Download CSV template')
+                ->icon('heroicon-m-document-arrow-down')
+                ->color('gray')
+                ->action(fn () => response()->streamDownload(
+                    function () {
+                        $out = fopen('php://output', 'w');
+                        fputcsv($out, ['name', 'phone', 'email', 'source', 'estimated_value']);
+                        fputcsv($out, ['Jane Doe', '+15551234567', 'jane@example.com', 'Blog form', '500']);
+                        fclose($out);
+                    },
+                    'lead-import-template.csv',
+                    ['Content-Type' => 'text/csv'],
+                )),
+            Action::make('downloadRejected')
+                ->label('Download rejected rows')
+                ->icon('heroicon-m-arrow-down-tray')
+                ->color('gray')
+                ->visible(fn () => AssignmentBatch::latest()->first()?->getAttribute('errors') !== null)
+                ->action(function () {
+                    $batch = AssignmentBatch::latest()->first();
+                    $errors = $batch instanceof AssignmentBatch ? (array) $batch->getAttribute('errors') : [];
+
+                    return response()->streamDownload(
+                        function () use ($errors) {
+                            $out = fopen('php://output', 'w');
+                            fputcsv($out, ['row', 'reason']);
+
+                            foreach ($errors as $error) {
+                                fputcsv($out, [$error['row'] ?? '', $error['reason'] ?? '']);
+                            }
+
+                            fclose($out);
+                        },
+                        'import-rejected-rows.csv',
+                        ['Content-Type' => 'text/csv'],
+                    );
                 }),
         ];
     }

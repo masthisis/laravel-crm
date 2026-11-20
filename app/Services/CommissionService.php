@@ -2,12 +2,20 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityType;
 use App\Enums\CommissionStatus;
 use App\Enums\LeadStatus;
+use App\Enums\ProductType;
+use App\Enums\SubscriptionStatus;
 use App\Models\Commission;
 use App\Models\CommissionRule;
+use App\Models\Customer;
 use App\Models\Lead;
 use App\Models\LeadSource;
+use App\Models\Product;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Commission rules engine.
@@ -19,15 +27,74 @@ use App\Models\LeadSource;
  */
 class CommissionService
 {
+    /** @var Collection<int, CommissionRule>|null */
+    protected ?Collection $rules = null;
+
     public function matchingRule(Lead $lead): ?CommissionRule
     {
-        return CommissionRule::query()
-            ->active()
-            ->orderByDesc('priority')
-            ->get()
+        return $this->activeRules()
             ->filter(fn (CommissionRule $rule) => $this->matches($rule, $lead))
             ->sortByDesc(fn (CommissionRule $rule) => $this->specificity($rule, $lead))
             ->first();
+    }
+
+    /**
+     * Simulate rule resolution for a raw source combination (no lead
+     * needed): returns every matching rule with its specificity score
+     * and priority, ranked exactly like the engine ranks them, plus the
+     * winning rule and the resulting commission for a given amount.
+     *
+     * @param  int|null  $sourceId  Original source (null = wildcard)
+     * @return array{winner: CommissionRule|null, amount: float, candidates: array<int, array{rule: CommissionRule, specificity: int, priority: int, rate: float}>}
+     */
+    public function simulate(?int $sourceId, ?int $reEngagedSourceId, ?int $soldSourceId, float $amount = 1000.0): array
+    {
+        $lead = new Lead([
+            'source_id' => $sourceId,
+            're_engaged_source_id' => $reEngagedSourceId,
+            'sold_source_id' => $soldSourceId,
+        ]);
+
+        $candidates = $this->activeRules()
+            ->filter(fn (CommissionRule $rule) => $this->matches($rule, $lead))
+            ->map(fn (CommissionRule $rule) => [
+                'rule' => $rule,
+                'specificity' => $this->specificity($rule, $lead),
+                'priority' => (int) $rule->priority,
+                'rate' => (float) $rule->rate,
+            ])
+            ->values()
+            ->sortByDesc(fn (array $candidate) => [$candidate['specificity'], $candidate['priority']])
+            ->values();
+
+        $winner = $candidates->first()['rule'] ?? null;
+
+        return [
+            'winner' => $winner,
+            'amount' => $winner !== null ? $this->calculate($amount, (float) $winner->rate) : 0.0,
+            'candidates' => $candidates->all(),
+        ];
+    }
+
+    /**
+     * Active rules, ordered for deterministic resolution, memoized for
+     * the lifetime of this service instance (one HTTP request / job via
+     * the scoped container binding).
+     *
+     * @return Collection<int, CommissionRule>
+     */
+    protected function activeRules(): Collection
+    {
+        return $this->rules ??= CommissionRule::query()
+            ->active()
+            ->orderByDesc('priority')
+            ->get();
+    }
+
+    /** Forget memoized rules (long-running processes, tests). */
+    public function resetState(): void
+    {
+        $this->rules = null;
     }
 
     /**
@@ -53,11 +120,16 @@ class CommissionService
     }
 
     /**
-     * Record a sale: transition the lead to "won" and create the
-     * commission based on the matching rule. Returns null when no
-     * rule matches or the commission already exists.
+     * Record a sale: transition the lead to "won", find-or-create the
+     * customer, create the order (+ subscription for recurring products),
+     * log the sale activity and create the commission based on the
+     * matching rule.
+     *
+     * Returns null when a commission already exists, no agent is assigned
+     * (sale is still recorded, but no commission can be attributed) or no
+     * rule matches.
      */
-    public function recordSale(Lead $lead, ?float $soldAmount = null, ?int $soldSourceId = null): ?Commission
+    public function recordSale(Lead $lead, ?float $soldAmount = null, ?int $soldSourceId = null, ?int $productId = null, int $quantity = 1): ?Commission
     {
         if ($lead->commissions()->exists()) {
             return null;
@@ -65,34 +137,113 @@ class CommissionService
 
         $amount = $soldAmount ?? (float) ($lead->estimated_value ?? 0);
 
-        $lead->update([
-            'status' => LeadStatus::Won,
-            'sold_amount' => $amount,
-            'sold_source_id' => $soldSourceId ?? $lead->sold_source_id ?? $lead->source_id,
-            'sold_at' => now(),
-            'lost_at' => null,
-            'lost_reason' => null,
-        ]);
+        return DB::transaction(function () use ($lead, $amount, $soldSourceId, $productId, $quantity): ?Commission {
+            $lead->update([
+                'status' => LeadStatus::Won,
+                'sold_amount' => $amount,
+                'sold_source_id' => $soldSourceId ?? $lead->sold_source_id ?? $lead->source_id,
+                'sold_at' => now(),
+                'lost_at' => null,
+                'lost_reason' => null,
+            ]);
 
-        $estimate = $this->estimateForLead($lead);
+            $product = $productId !== null ? Product::find($productId) : null;
 
-        if ($estimate === null) {
-            return null;
+            $customer = $this->resolveCustomerForSale($lead);
+            $lead->update(['customer_id' => $customer->id]);
+
+            $order = $customer->orders()->create([
+                'product_id' => $product?->id,
+                'agent_id' => $lead->assigned_agent_id,
+                'lead_id' => $lead->id,
+                'source_id' => $lead->sold_source_id ?? $lead->source_id,
+                'amount' => $amount,
+                'sold_at' => now(),
+                'notes' => $product !== null
+                    ? ($quantity > 1 ? "Sold {$quantity} × {$product->name}" : "Sold {$product->name}")
+                    : 'Direct sale',
+            ]);
+
+            if ($product !== null && $product->type->value === ProductType::Subscription->value) {
+                $order->subscriptions()->create([
+                    'customer_id' => $customer->id,
+                    'product_id' => $product->id,
+                    'status' => SubscriptionStatus::Active,
+                    'amount' => (float) $product->price,
+                    'interval' => $product->billing_interval ?: 'monthly',
+                    'started_at' => now(),
+                    'ends_at' => $this->subscriptionRenewalDate($product->billing_interval),
+                ]);
+            }
+
+            $lead->activities()->create([
+                'agent_id' => $lead->assigned_agent_id,
+                'type' => ActivityType::Sale,
+                'notes' => $product !== null
+                    ? "Sale recorded — {$order->amount} ".config('crm.currency', 'USD')." ({$product->name})"
+                    : 'Sale recorded — '.$order->amount.' '.config('crm.currency', 'USD'),
+                'occurred_at' => now(),
+            ]);
+
+            $estimate = $this->estimateForLead($lead);
+
+            if ($estimate === null || $lead->assigned_agent_id === null) {
+                return null;
+            }
+
+            return Commission::create([
+                'lead_id' => $lead->id,
+                'agent_id' => $lead->assigned_agent_id,
+                'commission_rule_id' => $estimate['rule']->id,
+                'original_source_id' => $lead->source_id,
+                're_engaged_source_id' => $lead->re_engaged_source_id,
+                'sold_source_id' => $lead->sold_source_id,
+                'base_amount' => $amount,
+                'rate' => $estimate['rate'],
+                'amount' => $estimate['amount'],
+                'status' => CommissionStatus::Pending,
+                'sold_at' => now(),
+            ]);
+        });
+    }
+
+    /**
+     * Find-or-create the customer behind a won lead: match by phone,
+     * then email, then fall back to creating a fresh record.
+     */
+    protected function resolveCustomerForSale(Lead $lead): Customer
+    {
+        if (filled($lead->phone)) {
+            $customer = Customer::query()->where('phone', $lead->phone)->first();
+
+            if ($customer !== null) {
+                return $customer;
+            }
         }
 
-        return Commission::create([
-            'lead_id' => $lead->id,
-            'agent_id' => $lead->assigned_agent_id,
-            'commission_rule_id' => $estimate['rule']->id,
-            'original_source_id' => $lead->source_id,
-            're_engaged_source_id' => $lead->re_engaged_source_id,
-            'sold_source_id' => $lead->sold_source_id,
-            'base_amount' => $amount,
-            'rate' => $estimate['rate'],
-            'amount' => $estimate['amount'],
-            'status' => CommissionStatus::Pending,
-            'sold_at' => now(),
+        if (filled($lead->email)) {
+            $customer = Customer::query()->where('email', $lead->email)->first();
+
+            if ($customer !== null) {
+                return $customer;
+            }
+        }
+
+        return Customer::create([
+            'name' => $lead->name,
+            'email' => $lead->email,
+            'phone' => $lead->phone,
         ]);
+    }
+
+    protected function subscriptionRenewalDate(?string $interval): CarbonInterface
+    {
+        return match ($interval) {
+            'weekly' => now()->addWeek(),
+            'quarterly' => now()->addQuarter(),
+            'yearly' => now()->addYear(),
+            default => now()->addMonth(),
+        };
     }
 
     public function calculate(float $base, float $rate): float

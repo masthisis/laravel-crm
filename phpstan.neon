@@ -8,16 +8,16 @@ parameters:
 
     ignoreErrors:
 
-        # spatie/laravel-permission adds role()/permission() scopes
-        # to the Eloquent builder at runtime.
+        # spatie/laravel-permission adds the role() scope to the Eloquent
+        # builder at runtime; our activeAgents() scope composes it.
         - identifier: method.notFound
-          message: '#Call to an undefined method Illuminate\\Database\\Eloquent\\Builder::role\(\)#'
+          message: '#Call to an undefined method Illuminate\\Database\\Eloquent\\Builder::activeAgents\(\)#'
 
         # Eloquent casts turn string columns into enums / Carbon / bool
         # at runtime; PHPStan sees the raw property types.
         - message: '#Strict comparison using (===|!==) between string and App\\Enums#'
         - message: '#Cannot access property \$value on string#'
-        - message: '#Cannot call method (format|label)\(\) on string#'
+        - message: '#Cannot call method (format|label|isPast|isToday)\(\) on string#'
         - message: '#Call to function abort_unless\(\) with false and 404 will always evaluate to false#'
         - message: '#Call to function in_array\(\) with arguments string, array#'
         - message: '#Using nullsafe (property|method) call on non-nullable type#'

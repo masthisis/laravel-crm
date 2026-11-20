@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Http\Middleware\EnsureUserIsActive;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -24,6 +25,8 @@ class AgentPanelProvider extends PanelProvider
             ->id('agent')
             ->path('agent')
             ->login()
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('30s')
             ->colors(['primary' => Color::Emerald])
             ->brandName(config('app.name').' — Agent')
             ->favicon(asset('favicon.svg'))
@@ -43,6 +46,7 @@ class AgentPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
+                EnsureUserIsActive::class,
             ]);
     }
 }

@@ -3,15 +3,20 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\IntegrationDriver;
-use App\Enums\LeadStatus;
-use App\Models\Lead;
 use App\Models\LeadIntegration;
+use App\Services\Capture\CaptureChannelRegistry;
+use App\Services\Capture\CaptureService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class LeadCaptureController extends Controller
 {
+    public function __construct(
+        protected CaptureChannelRegistry $registry,
+        protected CaptureService $capture,
+    ) {}
+
     /**
      * Embeddable lead form (rendered inside an iframe on external
      * sites, e.g. a blog article with a consultation form).
@@ -35,75 +40,13 @@ class LeadCaptureController extends Controller
             return $this->respond($request, 404, ['message' => 'Invalid or inactive integration token.']);
         }
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'phone' => ['required', 'string', 'max:32'],
-            'notes' => ['nullable', 'string', 'max:2000'],
-            'meta' => ['nullable', 'array'],
-        ]);
+        $channel = $this->registry->for($integration->driver);
 
-        $source = $integration->source;
+        $validated = $request->validate($channel->rules());
 
-        // Re-engagement: if an open lead with the same phone already
-        // exists from ANOTHER source, flag the new source as the
-        // re-engagement channel instead of creating a duplicate.
-        $existing = Lead::query()
-            ->where('phone', $validated['phone'])
-            ->whereNotIn('status', [LeadStatus::Won->value, LeadStatus::Lost->value])
-            ->latest()
-            ->first();
+        $outcome = $this->capture->capture($integration, $channel->mapPayload($validated, $integration));
 
-        if ($existing !== null && (int) $existing->source_id !== (int) $source->id) {
-            $existing->update([
-                're_engaged_source_id' => $source->id,
-                're_engaged_at' => now(),
-                'status' => LeadStatus::ReEngaged,
-                'email' => $existing->email ?? ($validated['email'] ?? null),
-            ]);
-
-            return $this->respond($request, 200, [
-                'message' => 'Welcome back! Your request was recorded.',
-                'data' => [
-                    'id' => $existing->id,
-                    'status' => $existing->status->value,
-                    're_engaged' => true,
-                ],
-            ]);
-        }
-
-        if ($existing !== null) {
-            // Same source, already an open lead — idempotent response.
-            return $this->respond($request, 200, [
-                'message' => 'You are already in our system. We will contact you soon!',
-                'data' => [
-                    'id' => $existing->id,
-                    'status' => $existing->status->value,
-                    'duplicate' => true,
-                ],
-            ]);
-        }
-
-        $lead = Lead::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'] ?? null,
-            'phone' => $validated['phone'],
-            'source_id' => $source->id,
-            'status' => LeadStatus::New,
-            'notes' => $validated['notes'] ?? null,
-            'meta' => array_merge($validated['meta'] ?? [], [
-                'integration' => $integration->id,
-                'driver' => $integration->driver->value,
-            ]),
-        ]);
-
-        return $this->respond($request, 201, [
-            'message' => 'Thank you! We will contact you shortly.',
-            'data' => [
-                'id' => $lead->id,
-                'status' => $lead->status->value,
-            ],
-        ]);
+        return $this->respond($request, $outcome['status'], $outcome['payload']);
     }
 
     protected function resolveIntegration(Request $request): ?LeadIntegration
@@ -113,10 +56,22 @@ class LeadCaptureController extends Controller
             ?? $this->bearerToken($request);
 
         if (blank($token)) {
+            // Embedded forms identify by id: the form URL is public, so
+            // the id carries no additional secret (tokens are hashed at
+            // rest and only form_embed integrations resolve this way).
+            $integrationId = $request->input('integration_id');
+
+            if ($integrationId !== null) {
+                return LeadIntegration::query()
+                    ->whereKey($integrationId)
+                    ->where('driver', IntegrationDriver::FormEmbed->value)
+                    ->first();
+            }
+
             return null;
         }
 
-        return LeadIntegration::query()->where('token', $token)->first();
+        return LeadIntegration::query()->where('token', hash('sha256', (string) $token))->first();
     }
 
     protected function bearerToken(Request $request): ?string

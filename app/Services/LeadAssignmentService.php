@@ -6,6 +6,7 @@ use App\Enums\AssignmentStrategy;
 use App\Models\AssignmentBatch;
 use App\Models\Lead;
 use App\Models\User;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Collection;
 
 /**
@@ -25,7 +26,7 @@ class LeadAssignmentService
             $this->assign($lead, $agent);
         }
 
-        return AssignmentBatch::create([
+        $batch = AssignmentBatch::create([
             'filename' => $filename,
             'total_leads' => $leads->count(),
             'strategy' => AssignmentStrategy::Single,
@@ -33,6 +34,10 @@ class LeadAssignmentService
             'user_id' => $actor->id ?? auth()->id(),
             'distribution' => [$agent->id => $leads->count()],
         ]);
+
+        $this->notifyAgent($agent, $leads->count());
+
+        return $batch;
     }
 
     /**
@@ -74,7 +79,7 @@ class LeadAssignmentService
             $distribution[$chosen]++;
         }
 
-        return AssignmentBatch::create([
+        $batch = AssignmentBatch::create([
             'filename' => $filename,
             'total_leads' => $leads->count(),
             'strategy' => AssignmentStrategy::Distribute,
@@ -82,6 +87,25 @@ class LeadAssignmentService
             'user_id' => $actor->id ?? auth()->id(),
             'distribution' => $distribution,
         ]);
+
+        foreach ($distribution as $agentId => $count) {
+            if ($count > 0 && ($notified = User::find($agentId)) !== null) {
+                $this->notifyAgent($notified, $count);
+            }
+        }
+
+        return $batch;
+    }
+
+    /** Send the "leads landed on you" database notification (batched). */
+    protected function notifyAgent(User $agent, int $count): void
+    {
+        Notification::make()
+            ->title($count === 1 ? 'You have a new lead' : "You have {$count} new leads")
+            ->icon('heroicon-o-user-plus')
+            ->color('success')
+            ->body('Open your pipeline to start working them — new leads are marked as New.')
+            ->sendToDatabase($agent);
     }
 
     protected function assign(Lead $lead, User $agent): Lead

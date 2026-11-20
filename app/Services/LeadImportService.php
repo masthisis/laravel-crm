@@ -8,6 +8,7 @@ use App\Models\AssignmentBatch;
 use App\Models\Lead;
 use App\Models\LeadSource;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
@@ -17,6 +18,10 @@ use Illuminate\Support\Str;
  * (only "name" is mandatory). A per-row "source" column creates the
  * source on the fly; otherwise the selected source from the import
  * form is used.
+ *
+ * Duplicate policy (crm.import.duplicate = skip|import): a row whose
+ * phone already exists on an open lead is counted as a duplicate and
+ * skipped by default — re-importing the same file imports nothing.
  */
 class LeadImportService
 {
@@ -25,7 +30,7 @@ class LeadImportService
     ) {}
 
     /**
-     * @return array{imported: int, skipped: int, errors: array<int, string>, batch: AssignmentBatch|null}
+     * @return array{imported: int, skipped: int, duplicates: int, errors: array<int, string>, batch: AssignmentBatch|null}
      */
     public function import(
         string $absolutePath,
@@ -37,13 +42,13 @@ class LeadImportService
         array $distributeAgentIds = [],
     ): array {
         if (! is_file($absolutePath)) {
-            return ['imported' => 0, 'skipped' => 0, 'errors' => ['File not found.'], 'batch' => null];
+            return ['imported' => 0, 'skipped' => 0, 'duplicates' => 0, 'errors' => ['File not found.'], 'batch' => null];
         }
 
         $handle = fopen($absolutePath, 'r');
 
         if ($handle === false) {
-            return ['imported' => 0, 'skipped' => 0, 'errors' => ['File is not readable.'], 'batch' => null];
+            return ['imported' => 0, 'skipped' => 0, 'duplicates' => 0, 'errors' => ['File is not readable.'], 'batch' => null];
         }
 
         $header = fgetcsv($handle);
@@ -51,12 +56,15 @@ class LeadImportService
         if ($header === false) {
             fclose($handle);
 
-            return ['imported' => 0, 'skipped' => 0, 'errors' => ['CSV has no header row.'], 'batch' => null];
+            return ['imported' => 0, 'skipped' => 0, 'duplicates' => 0, 'errors' => ['CSV has no header row.'], 'batch' => null];
         }
 
         $header = array_map(fn ($h) => strtolower(trim((string) $h, "\xEF\xBB\xBF \t\"")), $header);
 
+        $duplicatePolicy = config('crm.import.duplicate', 'skip');
+
         $imported = 0;
+        $duplicates = 0;
         $skipped = 0;
         $errors = [];
         $rowNumber = 1;
@@ -76,7 +84,7 @@ class LeadImportService
 
             if (($data['name'] ?? '') === '') {
                 $skipped++;
-                $errors[] = "Row {$rowNumber}: missing required 'name' column.";
+                $errors[] = ['row' => $rowNumber, 'reason' => "Missing required 'name' column."];
 
                 continue;
             }
@@ -93,7 +101,16 @@ class LeadImportService
 
             if ($source === null) {
                 $skipped++;
-                $errors[] = "Row {$rowNumber}: no source given.";
+                $errors[] = ['row' => $rowNumber, 'reason' => 'No source given.'];
+
+                continue;
+            }
+
+            $phone = ($data['phone'] ?? '') !== '' ? $data['phone'] : null;
+
+            if ($phone !== null && $duplicatePolicy === 'skip' && $this->isDuplicatePhone($phone)) {
+                $duplicates++;
+                $errors[] = ['row' => $rowNumber, 'reason' => "Duplicate phone {$phone} — an open lead with this phone already exists."];
 
                 continue;
             }
@@ -101,7 +118,7 @@ class LeadImportService
             $leads->push(Lead::create([
                 'name' => $data['name'],
                 'email' => ($data['email'] ?? '') !== '' ? $data['email'] : null,
-                'phone' => ($data['phone'] ?? '') !== '' ? $data['phone'] : null,
+                'phone' => $phone,
                 'source_id' => $source->id,
                 'status' => LeadStatus::New,
                 'estimated_value' => ($data['estimated_value'] ?? '') !== '' ? (float) $data['estimated_value'] : null,
@@ -113,28 +130,90 @@ class LeadImportService
 
         fclose($handle);
 
-        $batch = null;
-
-        if ($leads->isNotEmpty()) {
-            $actor = User::find($actorId);
-            $batch = match ($strategy) {
-                AssignmentStrategy::Single => $this->assignments->assignAll($leads, User::findOrFail($singleAgentId), $actor),
-                AssignmentStrategy::Distribute => $this->assignments->distribute($leads, $distributeAgentIds, $actor),
-                AssignmentStrategy::None => AssignmentBatch::create([
-                    'total_leads' => $leads->count(),
-                    'strategy' => AssignmentStrategy::None,
-                    'user_id' => $actorId,
-                    'distribution' => [],
-                ]),
-            };
-        }
+        $batch = $this->persistBatch([
+            'filename' => basename($absolutePath),
+            'total_rows' => $imported + $duplicates + $skipped,
+            'imported_count' => $imported,
+            'duplicates_count' => $duplicates,
+            'failed_count' => $skipped,
+            'errors' => $errors ?: null,
+            'total_leads' => $leads->count(),
+            'strategy' => $strategy,
+            'single_agent_id' => $singleAgentId,
+            'distribute_agent_ids' => $distributeAgentIds,
+            'actor_id' => $actorId,
+            'leads' => $leads,
+        ]);
 
         return [
             'imported' => $imported,
             'skipped' => $skipped,
-            'errors' => $errors,
+            'duplicates' => $duplicates,
+            'errors' => array_map(fn ($e) => 'Row '.$e['row'].': '.$e['reason'], $errors),
             'batch' => $batch,
         ];
+    }
+
+    protected function isDuplicatePhone(string $phone): bool
+    {
+        return Lead::query()
+            ->where('phone', $phone)
+            ->open()
+            ->exists();
+    }
+
+    /**
+     * @param  array{filename: string, total_rows: int, imported_count: int, duplicates_count: int, failed_count: int, errors: array|null, total_leads: int, strategy: AssignmentStrategy, single_agent_id: int|null, distribute_agent_ids: array, actor_id: int, leads: Collection<int, Lead>}  $report
+     */
+    protected function persistBatch(array $report): ?AssignmentBatch
+    {
+        if ($report['total_rows'] === 0) {
+            return null;
+        }
+
+        $base = [
+            'filename' => $report['filename'],
+            'total_rows' => $report['total_rows'],
+            'imported_count' => $report['imported_count'],
+            'duplicates_count' => $report['duplicates_count'],
+            'failed_count' => $report['failed_count'],
+            'total_leads' => $report['total_leads'],
+            'user_id' => $report['actor_id'],
+            'errors' => $report['errors'],
+        ];
+
+        return match ($report['strategy']) {
+            AssignmentStrategy::Single => $this->withReport(
+                $this->assignments->assignAll(
+                    $report['leads'],
+                    User::findOrFail($report['single_agent_id']),
+                    User::find($report['actor_id']),
+                    $report['filename'],
+                ),
+                $base,
+            ),
+            AssignmentStrategy::Distribute => $this->withReport(
+                $this->assignments->distribute(
+                    $report['leads'],
+                    $report['distribute_agent_ids'],
+                    User::find($report['actor_id']),
+                    $report['filename'],
+                ),
+                $base,
+            ),
+            AssignmentStrategy::None => AssignmentBatch::create($base + [
+                'strategy' => AssignmentStrategy::None,
+                'distribution' => [],
+            ]),
+        };
+    }
+
+    /** Decorate an assignment batch with the import report counters. */
+    protected function withReport(AssignmentBatch $batch, array $base): AssignmentBatch
+    {
+        $batch->update($base);
+
+        return $batch;
     }
 
     public function integrationToken(): string

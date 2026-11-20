@@ -6,10 +6,10 @@ use App\Enums\LeadStatus;
 use App\Filament\Admin\Resources\LeadResource\Pages;
 use App\Models\Lead;
 use App\Models\LeadSource;
+use App\Models\Product;
 use App\Models\User;
 use App\Services\CommissionService;
 use App\Services\LeadAssignmentService;
-use App\Support\Roles;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Infolists\Components\Grid;
@@ -33,6 +33,18 @@ class LeadResource extends Resource
     protected static ?string $navigationGroup = 'Leads';
 
     protected static ?int $navigationSort = 1;
+
+    public static function getNavigationBadge(): ?string
+    {
+        $unassigned = Lead::query()->open()->whereNull('assigned_agent_id')->count();
+
+        return $unassigned > 0 ? (string) $unassigned : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
+    }
 
     public static function form(Form $form): Form
     {
@@ -73,7 +85,7 @@ class LeadResource extends Resource
                 Forms\Components\Section::make('Assignment & customer')
                     ->schema([
                         Forms\Components\Select::make('assigned_agent_id')
-                            ->relationship('agent', 'name', modifyQueryUsing: fn (Builder $query) => $query->role('sales_staff'))
+                            ->relationship('agent', 'name', modifyQueryUsing: fn (Builder $query) => $query->activeAgents())
                             ->searchable()->preload()
                             ->label('Assigned agent'),
                         Forms\Components\Select::make('customer_id')
@@ -111,6 +123,17 @@ class LeadResource extends Resource
                 Tables\Filters\SelectFilter::make('status')->options(LeadStatus::class)->multiple(),
                 Tables\Filters\SelectFilter::make('source')->relationship('source', 'name')->searchable(),
                 Tables\Filters\SelectFilter::make('agent')->relationship('agent', 'name')->searchable(),
+                Tables\Filters\TernaryFilter::make('assigned')
+                    ->label('Assigned to an agent')
+                    ->nullable()
+                    ->falseLabel('Lead pool (unassigned)')
+                    ->trueLabel('Assigned'),
+                Tables\Filters\Filter::make('stale')
+                    ->label('Stale (open, no activity)')
+                    ->query(fn ($query) => $query->stale()),
+                Tables\Filters\Filter::make('today')
+                    ->label('Arrived today')
+                    ->query(fn ($query) => $query->whereDate('created_at', today())),
             ])
             ->actions([
                 Tables\Actions\Action::make('markWon')
@@ -128,15 +151,30 @@ class LeadResource extends Resource
                             ->numeric()->required()
                             ->default(fn (Lead $record) => $record->estimated_value)
                             ->prefix(config('crm.currency', 'USD')),
+                        Forms\Components\Select::make('product_id')
+                            ->label('Product (optional)')
+                            ->options(fn () => Product::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
+                            ->helperText('Creates the order (and a subscription for recurring products) on the customer record.'),
+                        Forms\Components\TextInput::make('quantity')
+                            ->numeric()->default(1)->minValue(1)->maxValue(100),
                     ])
                     ->action(function (Lead $record, array $data) {
-                        $commission = app(CommissionService::class)->recordSale($record, (float) $data['sold_amount'], (int) $data['sold_source_id']);
+                        $commission = app(CommissionService::class)->recordSale(
+                            $record,
+                            (float) $data['sold_amount'],
+                            (int) $data['sold_source_id'],
+                            $data['product_id'] !== null ? (int) $data['product_id'] : null,
+                            (int) ($data['quantity'] ?? 1),
+                        );
 
-                        Notification::make()
-                            ->title($commission
-                                ? 'Lead marked as won — commission '.number_format((float) $commission->amount, 2).' '.config('crm.currency', 'USD')
-                                : 'Lead marked as won — no commission rule matched, create one under Commission rules.')
-                            ->success()->send();
+                        $title = match (true) {
+                            $commission !== null => 'Lead marked as won — commission '.number_format((float) $commission->amount, 2).' '.config('crm.currency', 'USD'),
+                            $record->assigned_agent_id === null => 'Sale recorded — no agent assigned, so no commission was attributed. Assign an agent first to pay this sale.',
+                            default => 'Lead marked as won — no commission rule matched, create one under Commission rules.',
+                        };
+
+                        Notification::make()->title($title)->success()->send();
                     }),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
@@ -150,7 +188,7 @@ class LeadResource extends Resource
                         ->form([
                             Forms\Components\Select::make('agent_id')
                                 ->label('Agent')
-                                ->options(fn () => User::role(Roles::SALES_STAFF)->orderBy('name')->pluck('name', 'id'))
+                                ->options(fn () => User::activeAgents()->pluck('name', 'id'))
                                 ->searchable()->required(),
                         ])
                         ->action(function (Collection $records, array $data) {
@@ -168,7 +206,7 @@ class LeadResource extends Resource
                         ->form([
                             Forms\Components\Select::make('agents')
                                 ->label('Agents')
-                                ->options(fn () => User::role(Roles::SALES_STAFF)->orderBy('name')->pluck('name', 'id'))
+                                ->options(fn () => User::activeAgents()->pluck('name', 'id'))
                                 ->multiple()->searchable()->required()
                                 ->helperText('Leads are spread evenly across the selected agents, balancing their current workload.'),
                         ])

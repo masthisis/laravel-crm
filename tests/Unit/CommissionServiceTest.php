@@ -5,6 +5,7 @@ use App\Enums\LeadStatus;
 use App\Models\CommissionRule;
 use App\Models\Lead;
 use App\Models\LeadSource;
+use App\Models\User;
 use App\Services\CommissionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -102,12 +103,15 @@ it('returns null when no rule matches and no wildcard exists', function () {
 it('records a sale: lead becomes won and a pending commission is created', function () {
     CommissionRule::create(['name' => 'Blog standard', 'original_source_id' => $this->blogForm->id, 'rate' => 20]);
 
+    $agent = User::factory()->create();
+
     $lead = Lead::create([
         'name' => 'Sale Lead',
         'phone' => '+1000000005',
         'source_id' => $this->blogForm->id,
         'status' => LeadStatus::Qualified,
         'estimated_value' => 2000,
+        'assigned_agent_id' => $agent->id,
     ]);
 
     $commission = $this->service->recordSale($lead, 3000);
@@ -124,4 +128,36 @@ it('records a sale: lead becomes won and a pending commission is created', funct
     // Calling recordSale again must not duplicate the commission.
     expect($this->service->recordSale($lead, 3000))->toBeNull();
     expect($lead->commissions()->count())->toBe(1);
+});
+
+it('simulates rule resolution with ranked candidates for a raw combination', function () {
+    CommissionRule::create(['name' => 'Blog standard', 'original_source_id' => $this->blogForm->id, 'rate' => 15, 'priority' => 10]);
+    CommissionRule::create(['name' => 'Blog + Facebook re-engaged', 'original_source_id' => $this->blogForm->id, 're_engaged_source_id' => $this->facebook->id, 'rate' => 25, 'priority' => 10]);
+    CommissionRule::create(['name' => 'Wildcard fallback', 'rate' => 5, 'priority' => 0]);
+
+    $result = $this->service->simulate($this->blogForm->id, $this->facebook->id, null, 1000);
+
+    expect($result['winner']->name)->toBe('Blog + Facebook re-engaged')
+        ->and($result['amount'])->toBe(250.0)
+        ->and(count($result['candidates']))->toBe(3)
+        // Specificity wins over priority; the wildcard ranks last.
+        ->and($result['candidates'][0]['rule']->name)->toBe('Blog + Facebook re-engaged')
+        ->and($result['candidates'][1]['rule']->name)->toBe('Blog standard')
+        ->and($result['candidates'][2]['rule']->name)->toBe('Wildcard fallback');
+
+    // No matching rules at all -> explicit null winner.
+    $empty = $this->service->simulate(null, null, null, 1000);
+    expect($empty['winner']->name)->toBe('Wildcard fallback');
+
+    expect($this->service->simulate(null, null, null, 1000)['winner'])->not->toBeNull();
+});
+
+it('breaks specificity ties with the higher priority rule in simulation', function () {
+    CommissionRule::create(['name' => 'Low priority specific', 'original_source_id' => $this->blogForm->id, 'rate' => 10, 'priority' => 1]);
+    CommissionRule::create(['name' => 'High priority specific', 'original_source_id' => $this->blogForm->id, 'rate' => 20, 'priority' => 99]);
+
+    $result = $this->service->simulate($this->blogForm->id, null, null, 500);
+
+    expect($result['winner']->name)->toBe('High priority specific')
+        ->and($result['amount'])->toBe(100.0);
 });

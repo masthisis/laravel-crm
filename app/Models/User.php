@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use App\Support\Roles;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Contracts\Auth\MustVerifyEmail as MustVerifyEmailContract;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -29,6 +31,7 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmailContr
         'name',
         'email',
         'password',
+        'is_active',
     ];
 
     protected $hidden = [
@@ -41,6 +44,7 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmailContr
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
         ];
     }
 
@@ -50,11 +54,27 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmailContr
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        return match ($panel->getId()) {
+        $roleAllowed = match ($panel->getId()) {
             'admin' => $this->hasAnyRole(['admin', 'super_admin']),
             'agent' => $this->hasAnyRole(['sales_staff', 'super_admin']),
             default => false,
         };
+
+        // is_active defaults to true in the database; in-memory models
+        // created without the flag (factories, User::create) carry null,
+        // which counts as active — only an explicit false blocks access.
+        return $roleAllowed && $this->is_active !== false;
+    }
+
+    /**
+     * Active sales agents, alphabetical — the single source of truth
+     * for every agent select (assignment, import, reassignment).
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeActiveAgents(Builder $query): Builder
+    {
+        return $query->role(Roles::SALES_STAFF)->where('is_active', true)->orderBy('name');
     }
 
     /** @return HasMany<Lead, $this> */

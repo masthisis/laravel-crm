@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\LeadStatus;
 use Database\Factories\LeadFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,6 +29,7 @@ class Lead extends Model
         'customer_id',
         'assigned_at',
         'first_contacted_at',
+        'follow_up_at',
         're_engaged_at',
         'sold_at',
         'lost_at',
@@ -44,6 +46,7 @@ class Lead extends Model
             'sold_amount' => 'decimal:2',
             'assigned_at' => 'datetime',
             'first_contacted_at' => 'datetime',
+            'follow_up_at' => 'datetime',
             're_engaged_at' => 'datetime',
             'sold_at' => 'datetime',
             'lost_at' => 'datetime',
@@ -91,5 +94,52 @@ class Lead extends Model
     public function commissions(): HasMany
     {
         return $this->hasMany(Commission::class);
+    }
+
+    /** Open (not won, not lost) leads. @param Builder<Lead> $query */
+    public function scopeOpen(Builder $query): Builder
+    {
+        return $query->whereIn('status', [
+            LeadStatus::New->value,
+            LeadStatus::Contacted->value,
+            LeadStatus::Qualified->value,
+            LeadStatus::ReEngaged->value,
+        ]);
+    }
+
+    /**
+     * Open leads whose scheduled follow-up is due or overdue.
+     *
+     * @param  Builder<Lead>  $query
+     */
+    public function scopeDueFollowUps(Builder $query): Builder
+    {
+        return $query->open()->whereNotNull('follow_up_at')->where('follow_up_at', '<=', now());
+    }
+
+    /**
+     * Open leads with no activity for the given number of days —
+     * either no activity at all (and created before the cutoff) or
+     * only old activities.
+     *
+     * @param  Builder<Lead>  $query
+     */
+    public function scopeStale(Builder $query, ?int $days = null): Builder
+    {
+        $days ??= (int) config('crm.leads.stale_days', 7);
+
+        return $query
+            ->open()
+            ->where('created_at', '<', now()->subDays($days))
+            ->whereDoesntHave('activities', fn (Builder $inner) => $inner
+                ->where('occurred_at', '>=', now()->subDays($days)));
+    }
+
+    /** Leads assigned to the given agent today. @param Builder<Lead> $query */
+    public function scopeAssignedToday(Builder $query, ?int $agentId = null): Builder
+    {
+        return $query
+            ->when($agentId !== null, fn (Builder $inner) => $inner->where('assigned_agent_id', $agentId))
+            ->whereDate('assigned_at', today());
     }
 }
