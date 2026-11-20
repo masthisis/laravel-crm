@@ -11,3 +11,9 @@ use Illuminate\Support\Facades\Schedule;
 | EXTERNAL_SYNC_ENABLED=true.
 */
 Schedule::command('crm:sync-external-leads')->hourly();
+
+/*
+| Daily agent digest: due + overdue follow-ups as database
+| notifications (panel bell), 08:00 local time.
+*/
+Schedule::command('crm:send-followup-digest')->dailyAt('08:00');

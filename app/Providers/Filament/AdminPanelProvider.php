@@ -25,6 +25,8 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('30s')
             ->colors(['primary' => Color::Indigo])
             ->brandName(config('app.name').' — Admin')
             ->favicon(asset('favicon.svg'))

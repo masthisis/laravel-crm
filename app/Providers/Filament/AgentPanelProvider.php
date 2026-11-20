@@ -24,6 +24,8 @@ class AgentPanelProvider extends PanelProvider
             ->id('agent')
             ->path('agent')
             ->login()
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('30s')
             ->colors(['primary' => Color::Emerald])
             ->brandName(config('app.name').' — Agent')
             ->favicon(asset('favicon.svg'))
