@@ -39,6 +39,44 @@ class CommissionService
     }
 
     /**
+     * Simulate rule resolution for a raw source combination (no lead
+     * needed): returns every matching rule with its specificity score
+     * and priority, ranked exactly like the engine ranks them, plus the
+     * winning rule and the resulting commission for a given amount.
+     *
+     * @param  int|null  $sourceId  Original source (null = wildcard)
+     * @return array{winner: CommissionRule|null, amount: float, candidates: array<int, array{rule: CommissionRule, specificity: int, priority: int, rate: float}>}
+     */
+    public function simulate(?int $sourceId, ?int $reEngagedSourceId, ?int $soldSourceId, float $amount = 1000.0): array
+    {
+        $lead = new Lead([
+            'source_id' => $sourceId,
+            're_engaged_source_id' => $reEngagedSourceId,
+            'sold_source_id' => $soldSourceId,
+        ]);
+
+        $candidates = $this->activeRules()
+            ->filter(fn (CommissionRule $rule) => $this->matches($rule, $lead))
+            ->map(fn (CommissionRule $rule) => [
+                'rule' => $rule,
+                'specificity' => $this->specificity($rule, $lead),
+                'priority' => (int) $rule->priority,
+                'rate' => (float) $rule->rate,
+            ])
+            ->values()
+            ->sortByDesc(fn (array $candidate) => [$candidate['specificity'], $candidate['priority']])
+            ->values();
+
+        $winner = $candidates->first()['rule'] ?? null;
+
+        return [
+            'winner' => $winner,
+            'amount' => $winner !== null ? $this->calculate($amount, (float) $winner->rate) : 0.0,
+            'candidates' => $candidates->all(),
+        ];
+    }
+
+    /**
      * Active rules, ordered for deterministic resolution, memoized for
      * the lifetime of this service instance (one HTTP request / job via
      * the scoped container binding).
