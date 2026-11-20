@@ -1,0 +1,41 @@
+<?php
+
+return [
+
+    /*
+    |------------------------------------------------------------------
+    | CRM application settings
+    |------------------------------------------------------------------
+    */
+
+    'currency' => env('CRM_CURRENCY', 'USD'),
+
+    'commission' => [
+        'rounding' => (int) env('CRM_COMMISSION_ROUNDING', 2),
+    ],
+
+    'capture' => [
+        'throttle' => (int) env('CRM_CAPTURE_THROTTLE', 30),
+    ],
+
+    /*
+    |------------------------------------------------------------------
+    | External lead database sync
+    |------------------------------------------------------------------
+    | Column mapping used by `crm:sync-external-leads` so that any
+    | foreign table can be ingested without touching its schema.
+    */
+    'external_sync' => [
+        'enabled' => (bool) env('EXTERNAL_SYNC_ENABLED', false),
+        'connection' => env('EXTERNAL_SYNC_CONNECTION', 'external'),
+        'table' => env('EXTERNAL_SYNC_TABLE', 'external_leads'),
+        'reference_column' => env('EXTERNAL_SYNC_REF_COLUMN', 'id'),
+        'columns' => [
+            'name' => env('EXTERNAL_SYNC_COL_NAME', 'full_name'),
+            'phone' => env('EXTERNAL_SYNC_COL_PHONE', 'phone'),
+            'email' => env('EXTERNAL_SYNC_COL_EMAIL', 'email'),
+            'source' => env('EXTERNAL_SYNC_COL_SOURCE', 'source_name'),
+        ],
+    ],
+
+];
