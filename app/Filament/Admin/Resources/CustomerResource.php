@@ -136,6 +136,59 @@ class CustomerResource extends Resource
                         ->columns(4),
                 ])
                 ->collapsed(),
+            Section::make('Upcoming renewals')
+                ->description('Subscriptions renewing within 30 days — call before they lapse.')
+                ->schema([
+                    RepeatableEntry::make('renewalAlerts')
+                        ->hiddenLabel()
+                        ->state(function (Customer $record) {
+                            $window = now()->addDays((int) config('crm.subscriptions.renewal_window', 30));
+
+                            return $record->subscriptions()
+                                ->whereNotNull('ends_at')
+                                ->where('ends_at', '<=', $window)
+                                ->orderBy('ends_at')
+                                ->get()
+                                ->map(fn ($s) => [
+                                    'product' => $s->product->name ?? '—',
+                                    'renews_at' => $s->getAttribute('ends_at')?->format('Y-m-d').' ('.$s->getAttribute('ends_at')?->diffForHumans().')',
+                                    'status' => $s->status->label(),
+                                ])->all();
+                        })
+                        ->schema([
+                            TextEntry::make('product')->badge()->color('warning'),
+                            TextEntry::make('renews_at'),
+                            TextEntry::make('status')->badge(),
+                        ])->columns(3)
+                        ->placeholder('No subscriptions renewing in the next 30 days.'),
+                ])
+                ->collapsed(),
+            Section::make('Customer activity')
+                ->description('Notes and calls across this customer and their leads — newest first.')
+                ->schema([
+                    RepeatableEntry::make('activityTimeline')
+                        ->hiddenLabel()
+                        ->state(function (Customer $record) {
+                            return $record->leads->flatMap->activities
+                                ->merge($record->activities)
+                                ->sortByDesc('occurred_at')
+                                ->values()
+                                ->map(fn ($a) => [
+                                    'type' => $a->type->label(),
+                                    'notes' => $a->notes,
+                                    'occurred_at' => $a->occurred_at->format('Y-m-d H:i'),
+                                    'by' => $a->agent->name ?? 'system',
+                                ])->all();
+                        })
+                        ->schema([
+                            TextEntry::make('type')->badge(),
+                            TextEntry::make('notes'),
+                            TextEntry::make('occurred_at'),
+                            TextEntry::make('by'),
+                        ])->columns(4)
+                        ->placeholder('No activity recorded yet.'),
+                ])
+                ->collapsed(),
         ]);
     }
 

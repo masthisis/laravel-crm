@@ -21,6 +21,12 @@ class Customer extends Model
         'notes',
     ];
 
+    /** @return HasMany<LeadActivity, $this> */
+    public function activities(): HasMany
+    {
+        return $this->hasMany(LeadActivity::class)->latest('occurred_at');
+    }
+
     /** @return HasMany<Order, $this> */
     public function orders(): HasMany
     {

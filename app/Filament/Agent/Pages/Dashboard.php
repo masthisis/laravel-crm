@@ -6,6 +6,7 @@ use App\Filament\Agent\Widgets\AgentStatsWidget;
 use App\Filament\Agent\Widgets\CommissionsBySourceChart;
 use App\Filament\Agent\Widgets\MyDayWidget;
 use App\Filament\Agent\Widgets\MyPipelineChart;
+use App\Filament\Agent\Widgets\RenewalsDueWidget;
 use Filament\Pages\Dashboard as BaseDashboard;
 
 class Dashboard extends BaseDashboard
@@ -22,6 +23,7 @@ class Dashboard extends BaseDashboard
             AgentStatsWidget::class,
             MyPipelineChart::class,
             CommissionsBySourceChart::class,
+            RenewalsDueWidget::class,
         ];
     }
 }
