@@ -10,11 +10,16 @@ class AssignmentBatch extends Model
 {
     protected $fillable = [
         'filename',
+        'total_rows',
+        'imported_count',
+        'duplicates_count',
+        'failed_count',
         'total_leads',
         'strategy',
         'assigned_agent_id',
         'user_id',
         'distribution',
+        'errors',
     ];
 
     protected function casts(): array
@@ -22,7 +27,12 @@ class AssignmentBatch extends Model
         return [
             'strategy' => AssignmentStrategy::class,
             'total_leads' => 'integer',
+            'total_rows' => 'integer',
+            'imported_count' => 'integer',
+            'duplicates_count' => 'integer',
+            'failed_count' => 'integer',
             'distribution' => 'array',
+            'errors' => 'array',
         ];
     }
 

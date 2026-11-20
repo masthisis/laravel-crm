@@ -24,6 +24,14 @@ return [
         'stale_days' => (int) env('CRM_LEADS_STALE_DAYS', 7),
     ],
 
+    'import' => [
+        // skip: rows whose phone matches an existing open lead are counted
+        // as duplicates and not imported (safe default — re-importing the
+        // same file imports nothing). import: allow them through (e.g.
+        // first migration of a legacy CRM).
+        'duplicate' => env('CRM_IMPORT_DUPLICATE', 'skip'),
+    ],
+
     /*
     |------------------------------------------------------------------
     | External lead database sync
