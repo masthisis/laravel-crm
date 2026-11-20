@@ -18,6 +18,12 @@ return [
         'throttle' => (int) env('CRM_CAPTURE_THROTTLE', 30),
     ],
 
+    'leads' => [
+        // A lead is "stale" when it is open and has had no activity
+        // for this many days (admin + agent stale filters).
+        'stale_days' => (int) env('CRM_LEADS_STALE_DAYS', 7),
+    ],
+
     /*
     |------------------------------------------------------------------
     | External lead database sync
