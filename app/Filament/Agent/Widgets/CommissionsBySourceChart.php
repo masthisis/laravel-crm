@@ -11,10 +11,30 @@ class CommissionsBySourceChart extends ChartWidget
 
     protected int|string|array $columnSpan = 1;
 
+    protected function getFilters(): ?array
+    {
+        return [
+            '30' => 'Last 30 days',
+            '90' => 'Last 90 days',
+            '365' => 'Last 12 months',
+            'all' => 'All time',
+        ];
+    }
+
+    protected function periodCutoff(): ?string
+    {
+        return $this->filter === null || $this->filter === 'all'
+            ? null
+            : now()->subDays((int) $this->filter)->startOfDay()->toDateTimeString();
+    }
+
     protected function getData(): array
     {
+        $cutoff = $this->periodCutoff();
+
         $rows = Commission::query()
             ->where('agent_id', auth()->id())
+            ->when($cutoff !== null, fn ($query) => $query->where('sold_at', '>=', $cutoff))
             ->selectRaw('lead_sources.name as name, sum(commissions.amount) as total')
             ->join('lead_sources', 'lead_sources.id', '=', 'commissions.original_source_id')
             ->groupBy('lead_sources.name')

@@ -26,11 +26,11 @@ class StatsOverviewWidget extends BaseWidget
 
         return [
             Stat::make('Total leads', $totalLeads)
-                ->description($wonLeads.' won — '.$conversion.' conversion')
+                ->description($wonLeads.' won — '.$conversion.' conversion (all time)')
                 ->color('primary')
                 ->icon('heroicon-o-user-group'),
             Stat::make('Revenue', Number::currency($revenue, $currency))
-                ->description('Total recorded sales')
+                ->description('Total recorded sales (all time)')
                 ->color('success')
                 ->icon('heroicon-o-banknotes'),
             Stat::make('Commissions payable', Number::currency($payable, $currency))
