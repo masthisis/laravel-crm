@@ -84,9 +84,9 @@ class CustomerResource extends Resource
                     RepeatableEntry::make('orders')
                         ->hiddenLabel()
                         ->state(fn (Customer $record) => $record->orders->map(fn ($o) => [
-                            'product' => $o->product?->name ?? '—',
+                            'product' => $o->product->name ?? '—',
                             'amount' => number_format((float) $o->amount, 2).' '.config('crm.currency', 'USD'),
-                            'agent' => $o->agent?->name ?? '—',
+                            'agent' => $o->agent->name ?? '—',
                             'sold_at' => $o->sold_at?->format('Y-m-d') ?? '—',
                         ])->all())
                         ->schema([
@@ -102,7 +102,7 @@ class CustomerResource extends Resource
                     RepeatableEntry::make('subscriptions')
                         ->hiddenLabel()
                         ->state(fn (Customer $record) => $record->subscriptions->map(fn ($s) => [
-                            'product' => $s->product?->name ?? '—',
+                            'product' => $s->product->name ?? '—',
                             'status' => $s->status->label(),
                             'amount' => number_format((float) $s->amount, 2).' '.config('crm.currency', 'USD').' / '.$s->interval,
                             'started_at' => $s->started_at?->format('Y-m-d') ?? '—',
@@ -124,7 +124,7 @@ class CustomerResource extends Resource
                         ->state(fn (Customer $record) => $record->leads->map(fn ($l) => [
                             'name' => $l->name,
                             'status' => $l->status->label(),
-                            'source' => $l->source?->name ?? '—',
+                            'source' => $l->source->name ?? '—',
                             'created_at' => $l->created_at?->format('Y-m-d') ?? '—',
                         ])->all())
                         ->schema([
