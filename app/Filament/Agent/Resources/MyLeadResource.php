@@ -94,7 +94,7 @@ class MyLeadResource extends Resource
                     RepeatableEntry::make('customer.orders')
                         ->label('Purchases')
                         ->state(fn (Lead $record) => $record->customer->orders->map(fn ($o) => [
-                            'product' => $o->product?->name ?? '—',
+                            'product' => $o->product->name ?? '—',
                             'amount' => number_format((float) $o->amount, 2).' '.config('crm.currency', 'USD'),
                             'sold_at' => $o->sold_at?->format('Y-m-d') ?? '—',
                         ])->all())
@@ -106,7 +106,7 @@ class MyLeadResource extends Resource
                     RepeatableEntry::make('customer.subscriptions')
                         ->label('Subscriptions')
                         ->state(fn (Lead $record) => $record->customer->subscriptions->map(fn ($s) => [
-                            'product' => $s->product?->name ?? '—',
+                            'product' => $s->product->name ?? '—',
                             'status' => $s->status->label(),
                             'amount' => number_format((float) $s->amount, 2).' '.config('crm.currency', 'USD').' / '.$s->interval,
                         ])->all())
