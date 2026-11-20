@@ -5,3 +5,21 @@ parameters:
     level: 4
     paths:
         - app
+
+    ignoreErrors:
+
+        # spatie/laravel-permission adds role()/permission() scopes
+        # to the Eloquent builder at runtime.
+        - identifier: method.notFound
+          message: '#Call to an undefined method Illuminate\\Database\\Eloquent\\Builder::role\(\)#'
+
+        # Eloquent casts turn string columns into enums / Carbon / bool
+        # at runtime; PHPStan sees the raw property types.
+        - message: '#Strict comparison using (===|!==) between string and App\\Enums\\#'
+        - message: '#Strict comparison using (===|!==) between string and App\\Enums#'
+        - message: '#Cannot access property \$value on string#'
+        - message: '#Cannot call method (format|label)\(\) on string#'
+        - message: '#Call to function abort_unless\(\) with false and 404 will always evaluate to false#'
+        - message: '#Call to function in_array\(\) with arguments string, array#'
+        - message: '#Using nullsafe (property|method) call on non-nullable type#'
+        - message: '#Using nullsafe property access "\?->" on left side of \?\? is unnecessary#'
