@@ -14,6 +14,7 @@ use App\Models\Lead;
 use App\Models\LeadSource;
 use App\Models\Product;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -26,15 +27,36 @@ use Illuminate\Support\Facades\DB;
  */
 class CommissionService
 {
+    /** @var Collection<int, CommissionRule>|null */
+    protected ?Collection $rules = null;
+
     public function matchingRule(Lead $lead): ?CommissionRule
     {
-        return CommissionRule::query()
-            ->active()
-            ->orderByDesc('priority')
-            ->get()
+        return $this->activeRules()
             ->filter(fn (CommissionRule $rule) => $this->matches($rule, $lead))
             ->sortByDesc(fn (CommissionRule $rule) => $this->specificity($rule, $lead))
             ->first();
+    }
+
+    /**
+     * Active rules, ordered for deterministic resolution, memoized for
+     * the lifetime of this service instance (one HTTP request / job via
+     * the scoped container binding).
+     *
+     * @return Collection<int, CommissionRule>
+     */
+    protected function activeRules(): Collection
+    {
+        return $this->rules ??= CommissionRule::query()
+            ->active()
+            ->orderByDesc('priority')
+            ->get();
+    }
+
+    /** Forget memoized rules (long-running processes, tests). */
+    public function resetState(): void
+    {
+        $this->rules = null;
     }
 
     /**

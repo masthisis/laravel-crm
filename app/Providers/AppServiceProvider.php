@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\CommissionService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -12,7 +13,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Scoped singleton: one instance per request/job, so the
+        // commission rule set is loaded once and memoized for every
+        // estimateForLead() call (tables render N rows with one query).
+        $this->app->scoped(CommissionService::class);
     }
 
     /**
