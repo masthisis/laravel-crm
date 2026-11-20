@@ -10,7 +10,6 @@ use App\Models\Product;
 use App\Models\User;
 use App\Services\CommissionService;
 use App\Services\LeadAssignmentService;
-use App\Support\Roles;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Infolists\Components\Grid;
@@ -86,7 +85,7 @@ class LeadResource extends Resource
                 Forms\Components\Section::make('Assignment & customer')
                     ->schema([
                         Forms\Components\Select::make('assigned_agent_id')
-                            ->relationship('agent', 'name', modifyQueryUsing: fn (Builder $query) => $query->role('sales_staff'))
+                            ->relationship('agent', 'name', modifyQueryUsing: fn (Builder $query) => $query->activeAgents())
                             ->searchable()->preload()
                             ->label('Assigned agent'),
                         Forms\Components\Select::make('customer_id')
@@ -189,7 +188,7 @@ class LeadResource extends Resource
                         ->form([
                             Forms\Components\Select::make('agent_id')
                                 ->label('Agent')
-                                ->options(fn () => User::role(Roles::SALES_STAFF)->orderBy('name')->pluck('name', 'id'))
+                                ->options(fn () => User::activeAgents()->pluck('name', 'id'))
                                 ->searchable()->required(),
                         ])
                         ->action(function (Collection $records, array $data) {
@@ -207,7 +206,7 @@ class LeadResource extends Resource
                         ->form([
                             Forms\Components\Select::make('agents')
                                 ->label('Agents')
-                                ->options(fn () => User::role(Roles::SALES_STAFF)->orderBy('name')->pluck('name', 'id'))
+                                ->options(fn () => User::activeAgents()->pluck('name', 'id'))
                                 ->multiple()->searchable()->required()
                                 ->helperText('Leads are spread evenly across the selected agents, balancing their current workload.'),
                         ])

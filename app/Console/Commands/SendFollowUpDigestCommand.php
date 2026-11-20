@@ -24,6 +24,7 @@ class SendFollowUpDigestCommand extends Command
 
         User::query()
             ->role(Roles::SALES_STAFF)
+            ->where('is_active', true)
             ->withCount([
                 'agentLeads as due_follow_ups_count' => fn ($query) => $query->where('follow_up_at', '<=', now())->open(),
             ])

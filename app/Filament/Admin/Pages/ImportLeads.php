@@ -7,7 +7,6 @@ use App\Models\AssignmentBatch;
 use App\Models\LeadSource;
 use App\Models\User;
 use App\Services\LeadImportService;
-use App\Support\Roles;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Radio;
@@ -67,13 +66,13 @@ class ImportLeads extends Page
                         ->live(),
                     Select::make('single_agent_id')
                         ->label('Assign all to')
-                        ->options(fn () => User::role(Roles::SALES_STAFF)->orderBy('name')->pluck('name', 'id'))
+                        ->options(fn () => User::activeAgents()->pluck('name', 'id'))
                         ->searchable()
                         ->visible(fn (Get $get) => $get('strategy') === AssignmentStrategy::Single->value)
                         ->required(fn (Get $get) => $get('strategy') === AssignmentStrategy::Single->value),
                     Select::make('distribute_agents')
                         ->label('Distribute across')
-                        ->options(fn () => User::role(Roles::SALES_STAFF)->orderBy('name')->pluck('name', 'id'))
+                        ->options(fn () => User::activeAgents()->pluck('name', 'id'))
                         ->multiple()->searchable()
                         ->visible(fn (Get $get) => $get('strategy') === AssignmentStrategy::Distribute->value)
                         ->required(fn (Get $get) => $get('strategy') === AssignmentStrategy::Distribute->value)

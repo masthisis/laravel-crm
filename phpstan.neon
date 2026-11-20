@@ -8,10 +8,10 @@ parameters:
 
     ignoreErrors:
 
-        # spatie/laravel-permission adds role()/permission() scopes
-        # to the Eloquent builder at runtime.
+        # spatie/laravel-permission adds the role() scope to the Eloquent
+        # builder at runtime; our activeAgents() scope composes it.
         - identifier: method.notFound
-          message: '#Call to an undefined method Illuminate\\Database\\Eloquent\\Builder::role\(\)#'
+          message: '#Call to an undefined method Illuminate\\Database\\Eloquent\\Builder::activeAgents\(\)#'
 
         # Eloquent casts turn string columns into enums / Carbon / bool
         # at runtime; PHPStan sees the raw property types.
