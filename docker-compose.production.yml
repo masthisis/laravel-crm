@@ -1,0 +1,76 @@
+name: crm-production
+
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/masthisis/laravel-crm:latest}
+    env_file: .env.production
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      WAIT_FOR_DB: "true"
+      # Migrations run explicitly by the deploy pipeline (safer for prod).
+      RUN_MIGRATIONS: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: nginx
+    ports:
+      - "${APP_PORT:-80}:80"
+    depends_on:
+      - app
+    restart: always
+
+  worker:
+    image: ${APP_IMAGE:-ghcr.io/masthisis/laravel-crm:latest}
+    env_file: .env.production
+    environment:
+      APP_ENV: production
+      CONTAINER_ROLE: queue
+      WAIT_FOR_DB: "true"
+    depends_on:
+      - app
+    restart: always
+    deploy:
+      replicas: ${QUEUE_WORKERS:-1}
+
+  scheduler:
+    image: ${APP_IMAGE:-ghcr.io/masthisis/laravel-crm:latest}
+    env_file: .env.production
+    environment:
+      APP_ENV: production
+      CONTAINER_ROLE: scheduler
+      WAIT_FOR_DB: "true"
+    depends_on:
+      - app
+    restart: always
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-crm}
+      POSTGRES_USER: ${DB_USERNAME:-crm}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - production_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-crm} -d ${DB_DATABASE:-crm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - production_redisdata:/data
+    restart: always
+
+volumes:
+  production_pgdata:
+  production_redisdata:

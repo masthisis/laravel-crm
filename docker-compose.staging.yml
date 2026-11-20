@@ -1,0 +1,69 @@
+name: crm-staging
+
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/masthisis/laravel-crm:staging}
+    env_file: .env.staging
+    environment:
+      APP_ENV: staging
+      WAIT_FOR_DB: "true"
+      RUN_MIGRATIONS: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: nginx
+    ports:
+      - "${APP_PORT:-8081}:80"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  worker:
+    image: ${APP_IMAGE:-ghcr.io/masthisis/laravel-crm:staging}
+    env_file: .env.staging
+    environment:
+      APP_ENV: staging
+      CONTAINER_ROLE: queue
+      WAIT_FOR_DB: "true"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  scheduler:
+    image: ${APP_IMAGE:-ghcr.io/masthisis/laravel-crm:staging}
+    env_file: .env.staging
+    environment:
+      APP_ENV: staging
+      CONTAINER_ROLE: scheduler
+      WAIT_FOR_DB: "true"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-crm}
+      POSTGRES_USER: ${DB_USERNAME:-crm}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - staging_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-crm} -d ${DB_DATABASE:-crm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+volumes:
+  staging_pgdata:

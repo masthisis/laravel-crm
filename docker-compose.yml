@@ -1,0 +1,63 @@
+name: laravel-crm
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: dev
+    env_file: .env
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      WAIT_FOR_DB: "true"
+      RUN_MIGRATIONS: "true"
+    volumes:
+      - .:/var/www/html
+      - vendor:/var/www/html/vendor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: nginx
+    ports:
+      - "${APP_PORT:-8080}:80"
+    depends_on:
+      - app
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-crm}
+      POSTGRES_USER: ${DB_USERNAME:-crm}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-crm} -d ${DB_DATABASE:-crm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+
+volumes:
+  pgdata:
+  redisdata:
+  vendor:
