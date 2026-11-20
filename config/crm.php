@@ -41,6 +41,29 @@ return [
     */
     'external_sync' => [
         'enabled' => (bool) env('EXTERNAL_SYNC_ENABLED', false),
+
+        /*
+        | One entry per external database. Each names the DB connection
+        | (config/database.php), the table, the ordering/reference column
+        | and the column mapping. `crm:sync-external-leads <name>` syncs
+        | one connection, --all syncs every connection.
+        */
+        'connections' => [
+            'external' => [
+                'connection' => env('EXTERNAL_SYNC_CONNECTION', 'external'),
+                'table' => env('EXTERNAL_SYNC_TABLE', 'external_leads'),
+                'reference_column' => env('EXTERNAL_SYNC_REF_COLUMN', 'id'),
+                'source_name' => env('EXTERNAL_SYNC_SOURCE_NAME', 'External DB'),
+                'columns' => [
+                    'name' => env('EXTERNAL_SYNC_COL_NAME', 'full_name'),
+                    'phone' => env('EXTERNAL_SYNC_COL_PHONE', 'phone'),
+                    'email' => env('EXTERNAL_SYNC_COL_EMAIL', 'email'),
+                ],
+            ],
+        ],
+
+        // Legacy flat keys kept for backwards compatibility (the
+        // command falls back to them for the "external" connection).
         'connection' => env('EXTERNAL_SYNC_CONNECTION', 'external'),
         'table' => env('EXTERNAL_SYNC_TABLE', 'external_leads'),
         'reference_column' => env('EXTERNAL_SYNC_REF_COLUMN', 'id'),

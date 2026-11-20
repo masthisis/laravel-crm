@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Schedule;
 | configured in config/crm.php (external_sync). It is a no-op unless
 | EXTERNAL_SYNC_ENABLED=true.
 */
-Schedule::command('crm:sync-external-leads')->hourly();
+Schedule::command('crm:sync-external-leads', ['--all'])->hourly()->withoutOverlapping()->onOneServer();
 
 /*
 | Daily agent digest: due + overdue follow-ups as database
