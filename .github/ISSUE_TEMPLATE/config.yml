@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "Documentation"
+    url: https://github.com/masthisis/laravel-crm/tree/develop/docs
+    about: "Installation, running, deployment, architecture and git workflow manuals."
+  - name: "Agent workflow"
+    url: https://github.com/masthisis/laravel-crm/blob/develop/docs/GIT_WORKFLOW.md
+    about: "How issues become branches, pull requests, merges and releases — in both directions."

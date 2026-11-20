@@ -83,6 +83,13 @@ When a known lead re-appears from a *different* source, the CRM records it as a
 - Redis for queues/cache in production (database driver locally)
 - Docker Compose, GitHub Actions, GHCR
 
+## How we work
+
+All work moves through GitHub: **issue → branch → pull request → merge → release** — in both directions. The agent turns requests into fully specified issues (investigation included) and implements them on `feature/issue-N-…` branches; you can also open an **Agent Task** issue with a prompt and simply say *"fetch issue #N and work on it"*. Releases run through a release PR (`develop` → `main`), a semver tag and a GitHub Release.
+
+- Process: [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`docs/GIT_WORKFLOW.md`](docs/GIT_WORKFLOW.md)
+- Templates: *Agent Task*, *Feature request*, *Bug report* (Issues → New issue)
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

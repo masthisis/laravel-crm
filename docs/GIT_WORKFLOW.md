@@ -79,7 +79,55 @@ Automation that fires:
 | push `develop` | `Deploy (staging)` | SSH deploy + migrate (if enabled) |
 | release published | `Deploy (production)` | SSH deploy + migrate (if enabled) |
 
-## 5. Recommended repository settings
+## 5. The issue-driven loop (agent + owner)
+
+Work moves through GitHub in one direction only: **issue → branch → PR →
+merge → release** — whoever starts it.
+
+### 5.1 Forward flow — agent turns a request into an issue
+
+```
+request ──► issue (goal + investigation + plan + acceptance criteria)
+        ──► branch <type>/issue-<N>-<slug> off develop
+        ──► conventional commits referencing #N
+        ──► PR (base develop, body contains "Fixes #N")
+        ──► CI green ──► merge commit ──► issue auto-closed
+        ──► release PR develop → main ──► tag vX.Y.Z ──► GitHub Release
+```
+
+### 5.2 Reverse flow — the owner files an issue and the agent fetches it
+
+1. Open an issue with the **Agent Task** template
+   (`.github/ISSUE_TEMPLATE/agent-task.yml`): a *Prompt / instruction*,
+   context/constraints and acceptance criteria. It is auto-labelled
+   `agent/ready` + `status/triage`.
+2. Tell the agent: *"fetch issue #N and work on it"* (add *"and release"*
+   if you want the release train run afterwards).
+3. The agent: investigates the codebase, comments its plan on the issue,
+   creates the branch, implements, runs local gates, opens the PR, waits
+   for CI, merges, and optionally cuts the release. The issue comment trail
+   becomes the investigation record.
+
+### 5.3 Branch naming and labels
+
+| Item | Convention |
+| --- | --- |
+| Branches | `feature/issue-12-queued-import`, `fix/issue-9-phpstan-quality`, `docs/issue-10-agent-workflow`, `chore/…`, `hotfix/…` |
+| Type labels | `type/feature` `type/bug` `type/chore` `type/docs` `type/release` |
+| Status labels | `status/triage` → `status/in-progress` → `status/in-review` → closed |
+| Priority | `priority/P0` (now) `priority/P1` (next milestone) `priority/P2` (backlog) |
+| Area | `area/backend` `area/frontend` `area/infra` `area/quality` `area/docs` |
+| Agent hand-off | `agent/ready` = fully specified, safe to fetch and execute unattended |
+
+### 5.4 Release train
+
+1. All milestone issues merged into `develop`, CI green.
+2. Update `CHANGELOG.md` on a `chore/release-…` branch → PR → merge.
+3. Release PR: `develop` → `main`, title `chore(release): vX.Y.Z`.
+4. Merge, then tag `vX.Y.Z` on `main` and publish the GitHub Release
+   (generated notes + image tags fire automatically, see §4).
+
+## 6. Recommended repository settings
 
 - Protect `main`: require PRs, passing `CI`, no force push; allow only release merges.
 - Protect `develop`: require `CI` to pass; allow direct pushes from trusted maintainers.
@@ -87,7 +135,7 @@ Automation that fires:
 - `Settings → Environments → production`: require reviewer approval before
   the production deploy job runs.
 
-## 6. Hotfixes
+## 7. Hotfixes
 
 ```bash
 git checkout main
@@ -99,7 +147,7 @@ git tag -a vX.Y.(Z+1) && git push origin main vX.Y.(Z+1)
 git checkout develop && git merge --no-ff hotfix/...
 ```
 
-## 7. Local setup of the remote
+## 8. Local setup of the remote
 
 ```bash
 git remote add origin https://github.com/masthisis/laravel-crm.git
