@@ -30,7 +30,7 @@ class LeadAssignmentService
             'total_leads' => $leads->count(),
             'strategy' => AssignmentStrategy::Single,
             'assigned_agent_id' => $agent->id,
-            'user_id' => $actor?->id ?? auth()->id(),
+            'user_id' => $actor->id ?? auth()->id(),
             'distribution' => [$agent->id => $leads->count()],
         ]);
     }
@@ -79,7 +79,7 @@ class LeadAssignmentService
             'total_leads' => $leads->count(),
             'strategy' => AssignmentStrategy::Distribute,
             'assigned_agent_id' => null,
-            'user_id' => $actor?->id ?? auth()->id(),
+            'user_id' => $actor->id ?? auth()->id(),
             'distribution' => $distribution,
         ]);
     }

@@ -220,7 +220,7 @@ class LeadResource extends Resource
                         ->hiddenLabel()
                         ->state(fn (Lead $record) => $record->activities->map(fn ($a) => [
                             'type' => $a->type->label(),
-                            'agent' => $a->agent?->name ?? 'system',
+                            'agent' => $a->agent->name ?? 'system',
                             'notes' => $a->notes,
                             'occurred_at' => $a->occurred_at->format('Y-m-d H:i'),
                         ])->all())

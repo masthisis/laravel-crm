@@ -139,7 +139,7 @@ class LeadCaptureController extends Controller
         $integration = $this->resolveIntegration($request);
 
         return redirect()
-            ->route('leads.embed-form', ['integration' => $integration?->id ?? 0])
+            ->route('leads.embed-form', ['integration' => $integration->id ?? 0])
             ->with('submitted', $status < 300);
     }
 }

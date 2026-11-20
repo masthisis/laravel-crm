@@ -1,0 +1,41 @@
+name: "Agent Task"
+description: "Hand a fully specified task to the coding agent. It will fetch this issue, investigate, branch, implement, open a PR and merge on green CI."
+labels: ["agent/ready", "status/triage"]
+body:
+  - type: textarea
+    id: prompt
+    attributes:
+      label: "Prompt / instruction"
+      description: "What should the agent do? Write it as you would brief a developer. The agent treats this text as the task specification."
+      placeholder: |
+        Implement X using approach Y. Keep Z untouched.
+        Reuse app/Services/... patterns.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: "Context & constraints"
+      description: "Background, related issues, constraints, explicitly out-of-scope items."
+      placeholder: |
+        - Related to #10
+        - Must work with the database queue driver
+        - Out of scope: ...
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: "Acceptance criteria"
+      description: "How do we verify this is done? Tests, CI, docs, screenshots."
+      placeholder: |
+        - [ ] Feature test covers the new behaviour
+        - [ ] CI green; Pint/PHPStan clean
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Priority"
+      options:
+        - "priority/P2 (backlog)"
+        - "priority/P1 (next milestone)"
+        - "priority/P0 (drop everything)"
+    validations:
+      required: true
