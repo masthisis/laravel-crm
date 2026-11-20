@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] — 2026-11-20
+
+### Added
+- Bidirectional issue-driven agent workflow: **Agent Task / Feature request /
+  Bug report** issue templates, label taxonomy (`type/*`, `status/*`,
+  `priority/*`, `area/*`, `agent/ready`), process documentation in
+  `CONTRIBUTING.md` and `docs/GIT_WORKFLOW.md` §5, and a README
+  "How we work" section (#10, PR #14).
+
+### Fixed
+- PHPStan clean again: removed ten redundant nullsafe property accesses in
+  front of `??` and pruned two stale `ignoreErrors` patterns (#9, PR #13).
+
 ## [1.0.0] — 2026-11-20
 
 ### Added
