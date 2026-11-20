@@ -1,0 +1,37 @@
+name: "Feature request"
+description: "Propose new functionality for the CRM."
+labels: ["type/feature", "status/triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Problem / goal"
+      description: "Which user story or business need does this serve?"
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: "Proposed solution"
+      description: "What should happen? Which panels/resources/services are affected?"
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: "Alternatives considered"
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: "Acceptance criteria"
+      placeholder: "- [ ] ..."
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Priority"
+      options:
+        - "priority/P2 (backlog)"
+        - "priority/P1 (next milestone)"
+        - "priority/P0 (drop everything)"
+    validations:
+      required: true

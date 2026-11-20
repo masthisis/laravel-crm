@@ -1,0 +1,38 @@
+name: "Bug report"
+description: "Something in the CRM is broken or behaving incorrectly."
+labels: ["type/bug", "status/triage"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: "What happened?"
+      description: "Expected vs actual behaviour, including error messages."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: "Steps to reproduce"
+      placeholder: |
+        1. Log in as ...
+        2. Open ...
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: "Area"
+      options:
+        - "area/backend (models/services/controllers)"
+        - "area/frontend (Filament resources/widgets)"
+        - "area/infra (Docker/CI/deploy)"
+        - "area/quality (tests/analysis)"
+        - "area/docs"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: "Environment"
+      description: "PHP version, DB (PostgreSQL/MySQL/SQLite), Docker or native, browser for UI issues."
