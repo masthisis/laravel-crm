@@ -11,9 +11,29 @@ class RevenueBySourceChart extends ChartWidget
 
     protected int|string|array $columnSpan = 1;
 
+    protected function getFilters(): ?array
+    {
+        return [
+            '7' => 'Last 7 days',
+            '30' => 'Last 30 days',
+            '90' => 'Last 90 days',
+            'all' => 'All time',
+        ];
+    }
+
+    protected function periodCutoff(): ?string
+    {
+        return $this->filter === null || $this->filter === 'all'
+            ? null
+            : now()->subDays((int) $this->filter)->startOfDay()->toDateTimeString();
+    }
+
     protected function getData(): array
     {
+        $cutoff = $this->periodCutoff();
+
         $rows = Order::query()
+            ->when($cutoff !== null, fn ($query) => $query->where('sold_at', '>=', $cutoff))
             ->selectRaw('lead_sources.name as name, sum(orders.amount) as total')
             ->join('lead_sources', 'lead_sources.id', '=', 'orders.source_id')
             ->groupBy('lead_sources.name')
