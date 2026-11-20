@@ -5,6 +5,7 @@ use App\Enums\LeadStatus;
 use App\Models\CommissionRule;
 use App\Models\Lead;
 use App\Models\LeadSource;
+use App\Models\User;
 use App\Services\CommissionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -102,12 +103,15 @@ it('returns null when no rule matches and no wildcard exists', function () {
 it('records a sale: lead becomes won and a pending commission is created', function () {
     CommissionRule::create(['name' => 'Blog standard', 'original_source_id' => $this->blogForm->id, 'rate' => 20]);
 
+    $agent = User::factory()->create();
+
     $lead = Lead::create([
         'name' => 'Sale Lead',
         'phone' => '+1000000005',
         'source_id' => $this->blogForm->id,
         'status' => LeadStatus::Qualified,
         'estimated_value' => 2000,
+        'assigned_agent_id' => $agent->id,
     ]);
 
     $commission = $this->service->recordSale($lead, 3000);

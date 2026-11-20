@@ -6,6 +6,7 @@ use App\Enums\LeadStatus;
 use App\Filament\Admin\Resources\LeadResource\Pages;
 use App\Models\Lead;
 use App\Models\LeadSource;
+use App\Models\Product;
 use App\Models\User;
 use App\Services\CommissionService;
 use App\Services\LeadAssignmentService;
@@ -128,15 +129,30 @@ class LeadResource extends Resource
                             ->numeric()->required()
                             ->default(fn (Lead $record) => $record->estimated_value)
                             ->prefix(config('crm.currency', 'USD')),
+                        Forms\Components\Select::make('product_id')
+                            ->label('Product (optional)')
+                            ->options(fn () => Product::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
+                            ->helperText('Creates the order (and a subscription for recurring products) on the customer record.'),
+                        Forms\Components\TextInput::make('quantity')
+                            ->numeric()->default(1)->minValue(1)->maxValue(100),
                     ])
                     ->action(function (Lead $record, array $data) {
-                        $commission = app(CommissionService::class)->recordSale($record, (float) $data['sold_amount'], (int) $data['sold_source_id']);
+                        $commission = app(CommissionService::class)->recordSale(
+                            $record,
+                            (float) $data['sold_amount'],
+                            (int) $data['sold_source_id'],
+                            $data['product_id'] !== null ? (int) $data['product_id'] : null,
+                            (int) ($data['quantity'] ?? 1),
+                        );
 
-                        Notification::make()
-                            ->title($commission
-                                ? 'Lead marked as won — commission '.number_format((float) $commission->amount, 2).' '.config('crm.currency', 'USD')
-                                : 'Lead marked as won — no commission rule matched, create one under Commission rules.')
-                            ->success()->send();
+                        $title = match (true) {
+                            $commission !== null => 'Lead marked as won — commission '.number_format((float) $commission->amount, 2).' '.config('crm.currency', 'USD'),
+                            $record->assigned_agent_id === null => 'Sale recorded — no agent assigned, so no commission was attributed. Assign an agent first to pay this sale.',
+                            default => 'Lead marked as won — no commission rule matched, create one under Commission rules.',
+                        };
+
+                        Notification::make()->title($title)->success()->send();
                     }),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
