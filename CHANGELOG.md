@@ -4,6 +4,33 @@ All notable changes to this project are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-11-20
+
+Persona-driven milestone: 14 issues explored as the admin, the sales agent
+and the developer, specified in #17-#30, all shipped through the issue ->
+branch -> PR -> CI -> merge pipeline.
+
+### Added
+- **Sales conversion**: marking a lead won now creates/links the customer, an order (+ active subscription for recurring products) and a sale activity — revenue and the 360 view reflect real sales (#17, PR #31).
+- **Agent workflow**: follow-ups (`follow_up_at`), My-day dashboard widget, quick actions (log activity, schedule follow-up, mark lost with reason, reopen) and pipeline filters (today, due, stale) (#19, PR #32).
+- **Notifications**: Filament database notifications on both panels, batched assignment notifications, daily follow-up digest command (#20, PR #33).
+- **Triage**: unassigned lead-pool filter, stale filter, arrived-today filter and an unassigned-open badge on Leads (#18, PR #34).
+- **Safe agent deactivation** with lead reassignment (pool / all-to-one / distribute), login blocking, active-agents scope shared by every agent select (#22, PR #36).
+- **Import hardening**: duplicate policy (skip/import), persisted per-batch report (counters + row errors), rejected-rows CSV download, CSV template (#21, PR #37).
+- **Capture architecture**: pluggable `LeadChannel` adapters + registry, domain events (`LeadCaptured`, `LeadReengaged`, `DuplicateCaptureIgnored`), new `docs/API.md` (#24, PR #40).
+- **External sync v2**: multi-connection, chunked ordered reads, incremental cursor, `--dry-run`, `sync_runs` audit table + admin resource, overlap-guarded schedule, failure notifications (#25, PR #41).
+- **Rule simulator** on the Commission rules page (#26, PR #38).
+- **Analytics periods** on dashboard charts; stock metrics labelled all-time (#27, PR #39).
+- **Customer 360**: renewal alerts (30-day window), merged customer+lead activity timeline, log-customer-note action, renewals widget (#28, PR #42).
+- **Token security**: integration tokens hashed at rest (SHA-256), reveal-once + regenerate, embed forms post their public integration id (#29, PR #43).
+
+### Changed
+- Commissions are no longer created for unassigned won leads (sale recorded, admin notified why) (#17).
+- `commission_rules` are fetched once per request (scoped singleton + memoization) — pipeline tables no longer issue per-row rule queries (#23, PR #35).
+
+### Fixed
+- PHPStan quality gate restored (see 1.0.1).
+
 ## [1.0.1] — 2026-11-20
 
 ### Added
