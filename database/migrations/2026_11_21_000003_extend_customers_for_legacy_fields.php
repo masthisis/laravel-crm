@@ -28,6 +28,9 @@ return new class extends Migration
             $table->timestamp('last_login_at')->nullable()->after('created_by_operator_id');
             $table->timestamp('reminder_at')->nullable()->after('last_login_at');
             $table->foreignId('reminder_operator_id')->nullable()->after('reminder_at');
+            $table->unsignedInteger('wallet')->default(0)->after('reminder_operator_id');
+            $table->unsignedTinyInteger('kyc')->default(0)->after('wallet');
+            $table->boolean('blocked')->default(false)->after('kyc');
         });
     }
 
@@ -38,7 +41,7 @@ return new class extends Migration
                 'phone2', 'phone3', 'address', 'bank_cart', 'bank_number',
                 'bank_shaba', 'account_status', 'add_from', 'is_crm_created',
                 'created_by_operator_id', 'last_login_at', 'reminder_at',
-                'reminder_operator_id',
+                'reminder_operator_id', 'wallet', 'kyc', 'blocked',
             ]);
         });
     }
