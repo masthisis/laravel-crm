@@ -10,6 +10,8 @@ use App\Models\Customer;
 use App\Models\LeadContact;
 use App\Models\LeadEntry;
 use App\Models\LeadSource;
+use App\Models\SourceAttribution;
+use App\Models\UtmRecord;
 use App\Services\Leads\CaptureResult;
 use App\Services\Leads\LeadCaptureService;
 use App\Support\Persian;
@@ -103,6 +105,8 @@ class EventIntakeService
             self::TYPE_INVOICE_CREATED, self::TYPE_INVOICE_PAID => $this->handleInvoice($event, $data),
             self::TYPE_CALL_LOGGED => $this->handleCallLogged($event, $data),
             self::TYPE_CALL_COMPLETED => $this->handleCallCompleted($event, $data),
+            self::TYPE_UTM_IDENTIFIED => $this->handleUtmIdentified($event, $data),
+            self::TYPE_ATTRIBUTION_RECORDED => $this->handleAttributionRecorded($event, $data), // @phpstan-ignore-line
             default => 'unhandled',
         };
 
@@ -369,6 +373,85 @@ class EventIntakeService
 
             $row->save();
         }
+
+        return 'ok';
+    }
+
+    /**
+     * utm.identified: store/update the visit record (08 §2) — the site
+     * and PWA own capture; the CRM records what arrived.
+     *
+     * @param  array<string, mixed>  $event
+     * @param  array<string, mixed>  $data
+     */
+    private function handleUtmIdentified(array $event, array $data): string
+    {
+        UtmRecord::create([
+            'link_id' => isset($data['link_id']) ? (int) $data['link_id'] : null,
+            'visitor_token_hash' => $data['visitor_token_hash'] ?? '',
+            'visit_id' => $data['visit_id'] ?? null,
+            'utm_source' => $data['utm_source'] ?? null,
+            'utm_medium' => $data['utm_medium'] ?? null,
+            'utm_campaign' => $data['utm_campaign'] ?? null,
+            'display_name' => $data['display_name'] ?? null,
+            'landing_path' => $data['landing_path'] ?? null,
+            'referrer' => $data['referrer'] ?? null,
+            'user_id' => isset($data['user_id']) ? (int) $data['user_id'] : null,
+            'identification_type' => $data['identification_type'] ?? null,
+            'identified_at' => isset($data['identified_at']) ? Carbon::parse($data['identified_at']) : now(),
+            'phone' => PhoneNormalizer::canonical(is_string($data['phone'] ?? null) ? $data['phone'] : null),
+            'contact_origin' => $data['contact_origin'] ?? null,
+            'contact_ref' => $data['contact_ref'] ?? null,
+            'created_at' => isset($event['occurred_at']) ? Carbon::parse($event['occurred_at']) : now(),
+        ]);
+
+        return 'ok';
+    }
+
+    /**
+     * attribution.recorded: per-lead organic attribution (08 §3), unique
+     * per (origin_table, origin_id) — a replay is a no-op.
+     *
+     * @param  array<string, mixed>  $event
+     * @param  array<string, mixed>  $data
+     */
+    private function handleAttributionRecorded(array $event, array $data): string
+    {
+        $originTable = (string) ($event['origin_table'] ?? 'starttraining');
+        $originId = (int) ($event['origin_id'] ?? 0);
+
+        $exists = SourceAttribution::query()
+            ->where('origin_table', $originTable)
+            ->where('origin_id', $originId)
+            ->exists();
+
+        if ($exists) {
+            return 'duplicate_attribution';
+        }
+
+        SourceAttribution::create([
+            'origin_table' => $originTable,
+            'origin_id' => $originId,
+            'form' => $data['form'] ?? 'footer',
+            'phone' => PhoneNormalizer::canonical(is_string($data['phone'] ?? null) ? $data['phone'] : null),
+            'event_at' => isset($event['occurred_at']) ? Carbon::parse($event['occurred_at']) : now(),
+            'event_host' => $data['event_host'] ?? null,
+            'event_path' => $data['event_path'] ?? null,
+            'vt_channel' => $data['vt_channel'] ?? 'unknown',
+            'vt_source' => $data['vt_source'] ?? null,
+            'vt_referrer_host' => $data['vt_referrer_host'] ?? null,
+            'vt_host' => $data['vt_host'] ?? null,
+            'vt_section' => $data['vt_section'] ?? null,
+            'vt_category' => $data['vt_category'] ?? null,
+            'vt_post' => $data['vt_post'] ?? null,
+            'vt_landing_path' => $data['vt_landing_path'] ?? null,
+            'ft_channel' => $data['ft_channel'] ?? null,
+            'ft_source' => $data['ft_source'] ?? null,
+            'ft_at' => isset($data['ft_at']) ? Carbon::parse($data['ft_at']) : null,
+            'lnd_channel' => $data['lnd_channel'] ?? null,
+            'lnd_source' => $data['lnd_source'] ?? null,
+            'lnd_at' => isset($data['lnd_at']) ? Carbon::parse($data['lnd_at']) : null,
+        ]);
 
         return 'ok';
     }
