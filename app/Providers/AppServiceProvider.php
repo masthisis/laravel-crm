@@ -37,6 +37,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Persian UI everywhere (spec 01 §1.2): Filament renders RTL
+        // automatically for RTL locales.
+        app()->setLocale(config('app.locale', 'fa'));
+
         // super_admin bypasses every permission check
         Gate::before(fn ($user, $ability) => $user->hasRole('super_admin') ? true : null);
     }

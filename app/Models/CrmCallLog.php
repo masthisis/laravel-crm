@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -52,6 +53,20 @@ class CrmCallLog extends Model
     public function operator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'exten', 'exten');
+    }
+
+    /** Scope: answered calls (incoming with an answering extension, or outgoing). */
+    /** @param Builder<self> $query */
+    public function scopeAnswered($query): mixed
+    {
+        return $query->where(static function ($q) {
+            $q->where('type', self::TYPE_OUTGOING)
+                ->orWhere(static function ($q2) {
+                    $q2->where('type', self::TYPE_INCOMING)
+                        ->whereNotNull('accepted_call')
+                        ->where('accepted_call', '!=', '');
+                });
+        });
     }
 
     /** Answered = an answering extension recorded (incoming) or outgoing. */

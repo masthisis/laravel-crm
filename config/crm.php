@@ -68,6 +68,11 @@ return [
 
     'commission' => [
         'rounding' => (int) env('CRM_COMMISSION_ROUNDING', 2),
+
+        // Design A sync gate (09 §2.1): only invoices dated on or after
+        // this earn; empty = the sync is off.
+        'start_at' => env('CRM_COMMISSION_START_AT', ''),
+        'default_percent' => (float) env('CRM_COMMISSION_DEFAULT_PERCENT', 2),
     ],
 
     'capture' => [
