@@ -33,12 +33,16 @@ class Customer extends Model
         'last_login_at',
         'reminder_at',
         'reminder_operator_id',
+        'wallet',
+        'kyc',
+        'blocked',
     ];
 
     protected function casts(): array
     {
         return [
             'is_crm_created' => 'boolean',
+            'blocked' => 'boolean',
             'last_login_at' => 'datetime',
             'reminder_at' => 'datetime',
         ];
@@ -72,6 +76,24 @@ class Customer extends Model
     public function leadContacts(): HasMany
     {
         return $this->hasMany(LeadContact::class, 'customer_id');
+    }
+
+    /** @return HasMany<CrmNote, $this> */
+    public function crmNotes(): HasMany
+    {
+        return $this->hasMany(CrmNote::class)->orderByDesc('created_at');
+    }
+
+    /** @return HasMany<CrmInstallment, $this> */
+    public function crmInstallments(): HasMany
+    {
+        return $this->hasMany(CrmInstallment::class);
+    }
+
+    /** @return HasMany<CustomerAdminLog, $this> */
+    public function adminLogs(): HasMany
+    {
+        return $this->hasMany(CustomerAdminLog::class)->latest('id');
     }
 
     /**

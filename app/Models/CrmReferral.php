@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
 /**
  * The spec's rayan_lead_referal: one row per assignment of a phone to an
@@ -13,6 +14,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string $phone
  * @property string $reagent_code
  * @property string $status
+ * @property Carbon|null $referred_at
+ * @property Carbon|null $closed_at
+ * @property int|null $source_id
+ * @property int|null $entry_id
  */
 class CrmReferral extends Model
 {

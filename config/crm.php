@@ -45,6 +45,25 @@ return [
         'poll_interval' => (int) env('CRM_POLL_INTERVAL', 60),
     ],
 
+    /*
+    |------------------------------------------------------------------
+    | Phone system (PBX) and SMS (spec 04 §5)
+    |------------------------------------------------------------------
+    | The bridge host and keys come from the environment, never the repo.
+    | All call events and the CDR cron require the shared secret.
+    */
+    'pbx' => [
+        'bridge' => env('CRM_PBX_BRIDGE', ''),
+        'secret' => env('CRM_PBX_SECRET', ''),
+        'key' => env('CRM_PBX_KEY', ''),
+        'office_voice_url' => env('CRM_PBX_VOICE_URL', ''),
+    ],
+
+    'sms' => [
+        'endpoint' => env('CRM_SMS_ENDPOINT'),
+        'api_key' => env('CRM_SMS_API_KEY'),
+    ],
+
     'currency' => env('CRM_CURRENCY', 'USD'),
 
     'commission' => [

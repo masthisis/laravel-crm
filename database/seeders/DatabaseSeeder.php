@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
             SourceSeeder::class,
             LeadServiceSourceSeeder::class,
+            CrmLookupSeeder::class,
             CommissionRuleSeeder::class,
         ]);
 

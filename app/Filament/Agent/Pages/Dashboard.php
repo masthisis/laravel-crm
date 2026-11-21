@@ -4,6 +4,7 @@ namespace App\Filament\Agent\Pages;
 
 use App\Filament\Agent\Widgets\AgentStatsWidget;
 use App\Filament\Agent\Widgets\CommissionsBySourceChart;
+use App\Filament\Agent\Widgets\MyDashboardTables;
 use App\Filament\Agent\Widgets\MyDayWidget;
 use App\Filament\Agent\Widgets\MyPipelineChart;
 use App\Filament\Agent\Widgets\RenewalsDueWidget;
@@ -24,6 +25,10 @@ class Dashboard extends BaseDashboard
             MyPipelineChart::class,
             CommissionsBySourceChart::class,
             RenewalsDueWidget::class,
+            // Spec 04 §3.1 dashboard panels.
+            MyDashboardTables::make(['panel' => 'invoices']),
+            MyDashboardTables::make(['panel' => 'calls']),
+            MyDashboardTables::make(['panel' => 'notes']),
         ];
     }
 }
