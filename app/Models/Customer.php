@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\PhoneNormalizer;
 use Database\Factories\CustomerFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,10 +17,32 @@ class Customer extends Model
         'name',
         'email',
         'phone',
+        'phone2',
+        'phone3',
         'company',
         'country',
         'notes',
+        'address',
+        'bank_cart',
+        'bank_number',
+        'bank_shaba',
+        'account_status',
+        'add_from',
+        'is_crm_created',
+        'created_by_operator_id',
+        'last_login_at',
+        'reminder_at',
+        'reminder_operator_id',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_crm_created' => 'boolean',
+            'last_login_at' => 'datetime',
+            'reminder_at' => 'datetime',
+        ];
+    }
 
     /** @return HasMany<LeadActivity, $this> */
     public function activities(): HasMany
@@ -43,5 +66,30 @@ class Customer extends Model
     public function leads(): HasMany
     {
         return $this->hasMany(Lead::class);
+    }
+
+    /** @return HasMany<LeadContact, $this> */
+    public function leadContacts(): HasMany
+    {
+        return $this->hasMany(LeadContact::class, 'customer_id');
+    }
+
+    /**
+     * Match an account by canonical phone across phone/phone2/phone3
+     * (spec 01 §1.1 step 6 — column priority phone → phone2 → phone3).
+     */
+    public static function findByCanonicalPhone(string $canonical): ?self
+    {
+        $variants = PhoneNormalizer::variants($canonical);
+
+        foreach (['phone', 'phone2', 'phone3'] as $column) {
+            /** @var ?self $hit */
+            $hit = static::query()->whereIn($column, $variants)->first();
+            if ($hit !== null) {
+                return $hit;
+            }
+        }
+
+        return null;
     }
 }

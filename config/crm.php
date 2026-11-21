@@ -8,6 +8,29 @@ return [
     |------------------------------------------------------------------
     */
 
+    /*
+    |------------------------------------------------------------------
+    | Legacy platform database (read-only mirror of the old site)
+    |------------------------------------------------------------------
+    */
+    'legacy' => [
+        // Master switch for every legacy read (copy tool, poller,
+        // segment criteria). Nothing connects when false.
+        'enabled' => (bool) env('LEGACY_DB_ENABLED', false),
+        'connection' => env('LEGACY_DB_CONNECTION', 'legacy'),
+    ],
+
+    /*
+    |------------------------------------------------------------------
+    | LeadService capture semantics (spec 05 §3)
+    |------------------------------------------------------------------
+    */
+    'lead_service' => [
+        // Tehran wall clock: the app renders Jalali dates and treats
+        // legacy datetimes as Tehran-local.
+        'timezone' => env('CRM_TIMEZONE', 'Asia/Tehran'),
+    ],
+
     'currency' => env('CRM_CURRENCY', 'USD'),
 
     'commission' => [
