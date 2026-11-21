@@ -52,6 +52,33 @@ return [
             'engine' => null,
         ],
 
+        /*
+        |------------------------------------------------------------------
+        | Legacy platform database (read-only)
+        |------------------------------------------------------------------
+        | Read-only connection to the legacy MariaDB (`alireza3_new`, spec
+        | 03 §7). Give this user SELECT rights only. Connections are lazy:
+        | nothing touches this connection unless LEGACY_DB_ENABLED=true and
+        | a legacy reader (copy tool, poller, segment criteria) runs.
+        */
+        'legacy' => [
+            'driver' => 'mariadb',
+            'host' => env('LEGACY_DB_HOST', '127.0.0.1'),
+            'port' => env('LEGACY_DB_PORT', '3306'),
+            'database' => env('LEGACY_DB_DATABASE', 'alireza3_new'),
+            'username' => env('LEGACY_DB_USERNAME', 'crm_readonly'),
+            'password' => env('LEGACY_DB_PASSWORD', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
