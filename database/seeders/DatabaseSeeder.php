@@ -12,6 +12,8 @@ class DatabaseSeeder extends Seeder
             RolesAndPermissionsSeeder::class,
             AdminUserSeeder::class,
             SourceSeeder::class,
+            LeadServiceSourceSeeder::class,
+            CrmLookupSeeder::class,
             CommissionRuleSeeder::class,
         ]);
 

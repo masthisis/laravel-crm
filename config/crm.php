@@ -8,10 +8,71 @@ return [
     |------------------------------------------------------------------
     */
 
+    /*
+    |------------------------------------------------------------------
+    | Legacy platform database (read-only mirror of the old site)
+    |------------------------------------------------------------------
+    */
+    'legacy' => [
+        // Master switch for every legacy read (copy tool, poller,
+        // segment criteria). Nothing connects when false.
+        'enabled' => (bool) env('LEGACY_DB_ENABLED', false),
+        'connection' => env('LEGACY_DB_CONNECTION', 'legacy'),
+    ],
+
+    /*
+    |------------------------------------------------------------------
+    | LeadService capture semantics (spec 05 §3)
+    |------------------------------------------------------------------
+    */
+    'lead_service' => [
+        // Tehran wall clock: the app renders Jalali dates and treats
+        // legacy datetimes as Tehran-local.
+        'timezone' => env('CRM_TIMEZONE', 'Asia/Tehran'),
+    ],
+
+    /*
+    |------------------------------------------------------------------
+    | Event intake (spec 03 §1-3)
+    |------------------------------------------------------------------
+    */
+    'events' => [
+        // HMAC secret for POST /api/events. Producers sign the raw body:
+        // X-Signature: sha256=<hex of HMAC(secret, body)>.
+        'secret' => env('CRM_EVENT_SECRET', ''),
+
+        // Polling fallback interval (seconds) for crm:poll-legacy --daemon.
+        'poll_interval' => (int) env('CRM_POLL_INTERVAL', 60),
+    ],
+
+    /*
+    |------------------------------------------------------------------
+    | Phone system (PBX) and SMS (spec 04 §5)
+    |------------------------------------------------------------------
+    | The bridge host and keys come from the environment, never the repo.
+    | All call events and the CDR cron require the shared secret.
+    */
+    'pbx' => [
+        'bridge' => env('CRM_PBX_BRIDGE', ''),
+        'secret' => env('CRM_PBX_SECRET', ''),
+        'key' => env('CRM_PBX_KEY', ''),
+        'office_voice_url' => env('CRM_PBX_VOICE_URL', ''),
+    ],
+
+    'sms' => [
+        'endpoint' => env('CRM_SMS_ENDPOINT'),
+        'api_key' => env('CRM_SMS_API_KEY'),
+    ],
+
     'currency' => env('CRM_CURRENCY', 'USD'),
 
     'commission' => [
         'rounding' => (int) env('CRM_COMMISSION_ROUNDING', 2),
+
+        // Design A sync gate (09 §2.1): only invoices dated on or after
+        // this earn; empty = the sync is off.
+        'start_at' => env('CRM_COMMISSION_START_AT', ''),
+        'default_percent' => (float) env('CRM_COMMISSION_DEFAULT_PERCENT', 2),
     ],
 
     'capture' => [

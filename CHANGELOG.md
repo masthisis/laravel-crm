@@ -4,6 +4,45 @@ All notable changes to this project are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-11-21
+
+Spec-implementation milestone: the ARM Invest CRM specification
+(`crm-laravel-docs`) implemented end to end, specified in #47–#50 and
+shipped through the issue → branch → PR → CI → merge pipeline.
+
+### Added — LeadService core (#47, PR #51)
+- **Canonical phones**: `PhoneNormalizer` (Persian/Arabic digits, separators, `+98`/`0098`/`98`/`0` prefixes, valid = 10 digits starting 9) + lookup variants, used everywhere.
+- **Contact/entry model**: `lead_contacts` (one person per canonical phone, owner columns), `lead_entries` (`UNIQUE(source_id, origin_ref)` idempotency, returning flag, invalid phones kept flagged — never dropped), `lead_entry_facets`, `lead_contact_sources`.
+- **Sources**: `kind`/`driver`/`crm_lead_type`(+map)/`config`/`importable`/`commission_percent` on `lead_sources`, 15 seeded system sources, badge + text-luminance helpers.
+- **File import**: csv/txt/xlsx/ods (own OOXML/ODF reader, no new dependency), Persian header aliases, ≤12 extra payload columns, returning-not-duplicate semantics, exact in-file repeats skipped with the row they repeat, SHA-1 duplicate-file warning, custom source creation.
+- **Legacy copy**: `crm:copy-legacy-leads` — 9 adapters over the read-only `legacy` connection, id cursors, resumable/idempotent.
+- **Jalali + Persian support** (jdf conversions, month keys/ranges, Persian digits/toman).
+
+### Added — Intake & assignment (#48, PR #52)
+- **Event contract**: `POST /api/events` with HMAC-SHA256 verification, replay receipts, handlers for lead/account/invoice/call events (`lead.verified`/`lead.paid` propagate the updates the legacy copy missed, 11 #29).
+- **Polling fallback**: `crm:poll-legacy` — 13 producer tables by id cursor + status windows by `update_date` with overlap; shared idempotency keys with the webhook path.
+- **ارجاع engine**: eligible-operator gate, re-checked targets, unique-by-phone (latest entry = trigger), 30-day duplicate window with confirm/force, single/round_robin, per-batch transaction writing `crm_referrals` + `lead_assignments` + owner + frozen engagement context; `trackReferral`/`trackSnooze`/`trackReject` (reject enforces ownership, 11 #5).
+- **Engagement tags**: first/latest from entries (+UTM visits), frozen per-referral contexts (complete/inferred/unknown).
+- **Conversion report**: history vs owner-at-purchase views, DISTINCT contacts, Jalali weekly/monthly/agent grouping.
+
+### Added — Operator workspace & phone system (#49, PR #53)
+- **ارجاع روز** page: badges, engagement tags, commission badge, applied filters (11 #9), عدم خرید dialog, SMS templates with part counter + working server handler (11 #11), click-to-call.
+- **Call logs** with correct missed-call precedence (11 #8), **call queue** with outcomes, **reminders**, **sales** chart (ExtenSalesCond, operator 1 skipped, product 22 excluded) with conflict detection, **unknown-number register**.
+- **Dashboard** widgets: unpaid invoices of my sales (scoped count, 11 #13), last 40 calls, last 40 notes.
+- **PBX**: authenticated call-event webhook (11 #3) with one row per ringing extension, event-driven `IncomingCall` broadcast (11 #18), click-to-call proxy with AES-encrypted params, `crm:verify-cdr`, token-based desktop/mobile lookups (11 #2).
+- **Customer file**: CRM sections (owner/sources, notes, calls, referrals, installments, talking points), lookup seeders, `customer_admin_log` audit trail.
+
+### Added — UTM, segments, commission (#50, PR #54)
+- **UTM & attribution**: immutable links (+automatic dedupe), visit records with first-identity-wins identification, per-lead organic attribution with vt_/ft_/lnd_ dimensions, spec-order referrer classifier, `utm.identified`/`attribution.recorded` intake handlers.
+- **Segment engine**: rule tree (depth 3 / 20 rules, negate), 15+ criteria incl. the paid = 2/3/4 + BazaarPay/Myket status-3 rule and `exclude_paid_in_period`, app-activity criteria via the legacy connection, 600 s snapshot cache, four system segments.
+- **Commission PRD**: insert-only earnings keyed by invoice, recipient = agent discount-code owner (ambiguous → review), rate from the latest assignment source (else PRD lead-type rates, else 2 %), Jalali month, `crm:commission-sync` with lock, manager page (breakdowns, payout modal unique per agent/month) + agent earnings page.
+- **Presentation**: Persian locale (RTL panels), Jalali dates + toman amounts, `.env.example` documents every integration variable.
+
+### Fixed
+- Legacy bugs from spec 11 fixed by design: plaintext passwords (Laravel hashing), query-string credentials (tokens), unauthenticated PBX/CDR endpoints (shared secret), missing ownership checks (policies/service guards), missed-call OR precedence, ignored referral filters, UI-only SMS, cosmetic unpaid total, live-call polling (push events).
+
+**Full diff**: https://github.com/masthisis/laravel-crm/compare/v1.1.0...v1.2.0
+
 ## [1.1.0] — 2026-11-20
 
 Persona-driven milestone: 14 issues explored as the admin, the sales agent

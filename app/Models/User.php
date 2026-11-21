@@ -12,15 +12,21 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
 /**
  * @property int $agent_leads_count
  * @property int $won_leads_count
  * @property float|null $commissions_earned
+ * @property string|null $exten
+ * @property bool $may_receive_referrals
+ * @property bool $is_commission_manager
  */
 class User extends Authenticatable implements FilamentUser, MustVerifyEmailContract
 {
+    use HasApiTokens;
+
     /** @use HasFactory<UserFactory> */
     use HasFactory;
 
@@ -32,6 +38,9 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmailContr
         'email',
         'password',
         'is_active',
+        'exten',
+        'may_receive_referrals',
+        'is_commission_manager',
     ];
 
     protected $hidden = [
@@ -45,6 +54,8 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmailContr
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'may_receive_referrals' => 'boolean',
+            'is_commission_manager' => 'boolean',
         ];
     }
 
@@ -75,6 +86,36 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmailContr
     public function scopeActiveAgents(Builder $query): Builder
     {
         return $query->role(Roles::SALES_STAFF)->where('is_active', true)->orderBy('name');
+    }
+
+    /**
+     * Eligible referral operators (spec 05 §5 step 1): enabled, may
+     * receive referrals and has a PBX extension. The trimmed exten is
+     * the operator code.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeEligibleOperators(Builder $query): Builder
+    {
+        return $query->where('is_active', true)
+            ->where('may_receive_referrals', true)
+            ->whereNotNull('exten')
+            ->where('exten', '!=', '')
+            ->orderBy('name');
+    }
+
+    /** The operator code = trimmed extension. */
+    public function operatorCode(): ?string
+    {
+        $exten = trim((string) ($this->exten ?? ''));
+
+        return $exten === '' ? null : $exten;
+    }
+
+    /** @return HasMany<CrmReferral, $this> */
+    public function referrals(): HasMany
+    {
+        return $this->hasMany(CrmReferral::class, 'referred_by');
     }
 
     /** @return HasMany<Lead, $this> */
