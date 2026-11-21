@@ -31,6 +31,20 @@ return [
         'timezone' => env('CRM_TIMEZONE', 'Asia/Tehran'),
     ],
 
+    /*
+    |------------------------------------------------------------------
+    | Event intake (spec 03 §1-3)
+    |------------------------------------------------------------------
+    */
+    'events' => [
+        // HMAC secret for POST /api/events. Producers sign the raw body:
+        // X-Signature: sha256=<hex of HMAC(secret, body)>.
+        'secret' => env('CRM_EVENT_SECRET', ''),
+
+        // Polling fallback interval (seconds) for crm:poll-legacy --daemon.
+        'poll_interval' => (int) env('CRM_POLL_INTERVAL', 60),
+    ],
+
     'currency' => env('CRM_CURRENCY', 'USD'),
 
     'commission' => [
